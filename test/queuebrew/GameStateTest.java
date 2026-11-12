@@ -131,11 +131,10 @@ public class GameStateTest {
 
     @Test
     public void thirdLostLifeEndsTheGame() {
-        // Never serve anyone: line fills at 48 s, then 56 s (day 1 arrivals
-        // every 8 s), then day 2 arrivals come every 7 s.
-        tick(60); // day 1: arrivals at 8..48 fill, 56 costs a life
-        assertEquals(2, game.getLives());
-        tick(14); // day 2: arrivals at 7 and 14 cost two more lives
+        tickAndServe(120); // days 1 and 2 go fine
+        // Day 3 (6 s gaps), never serving: the line fills at 36 s, then 42,
+        // 48 and 54 s each turn a customer away.
+        tick(54);
         assertEquals(0, game.getLives());
         assertEquals(GameState.Status.LOST, game.getStatus());
     }
@@ -187,7 +186,7 @@ public class GameStateTest {
 
     @Test
     public void nothingChangesAfterTheGameEnds() {
-        tick(74); // lost, see thirdLostLifeEndsTheGame
+        tick(60); // lost, see leftoverCustomersBeyondYourLivesLoseTheGame
         assertEquals(GameState.Status.LOST, game.getStatus());
         int[] calls = { 0 };
         game.addListener(() -> calls[0]++);
@@ -226,7 +225,7 @@ public class GameStateTest {
         game.addListener(() -> calls[0]++);
         game.startNextDay();
         assertEquals(0, calls[0]);
-        tick(60);
+        tickAndServe(60);
         int afterDayEnd = calls[0];
         game.startNextDay();
         assertEquals(afterDayEnd + 1, calls[0]);
@@ -242,6 +241,83 @@ public class GameStateTest {
     @Test
     public void newGameIsNotBetweenDays() {
         assertFalse(game.isBetweenDays());
+    }
+
+    @Test
+    public void endOfDayClearsTheLineTheCupAndAnyPenalty() {
+        tickAndServe(40);
+        tick(19); // arrivals at 48 s and 56 s are left waiting
+        assertEquals(2, game.getQueueSize());
+        game.addIngredient("Foam");
+        game.addIngredient("Foam");
+        game.addIngredient("Foam");
+        game.completeFrontOrder(); // wrong cup: starts a penalty
+        assertTrue(game.getPenaltySecondsLeft() > 0);
+        game.tick(); // 60th second ends the day
+        assertTrue(game.isBetweenDays());
+        assertEquals(0, game.getQueueSize());
+        assertTrue(game.getCup().isEmpty());
+        assertEquals(0, game.getPenaltySecondsLeft());
+    }
+
+    @Test
+    public void nextDayStartsWithAnEmptyLine() {
+        tickAndServe(40);
+        tick(20);
+        game.startNextDay();
+        assertEquals(0, game.getQueueSize());
+        assertEquals(2, game.getDay());
+    }
+
+    @Test
+    public void eachCustomerLeftInLineAtClosingCostsALife() {
+        tickAndServe(40);
+        tick(20); // two customers left waiting
+        assertEquals(1, game.getLives());
+        assertEquals(GameState.Status.PLAYING, game.getStatus());
+        assertTrue(game.isBetweenDays());
+        assertTrue(game.getMessage().contains("2 customers"), game.getMessage());
+    }
+
+    @Test
+    public void oneCustomerLeftAtClosingCostsOneLife() {
+        tickAndServe(52);
+        tick(8);
+        assertEquals(2, game.getLives());
+        assertTrue(game.getMessage().contains("1 customer was"), game.getMessage());
+    }
+
+    @Test
+    public void leftoverCustomersBeyondYourLivesLoseTheGame() {
+        tick(60); // never served anyone: 1 turned away, 6 left in line
+        assertEquals(0, game.getLives());
+        assertEquals(GameState.Status.LOST, game.getStatus());
+        assertFalse(game.isBetweenDays());
+    }
+
+    @Test
+    public void emptyLineAtClosingCostsNothing() {
+        tickAndServe(60);
+        assertEquals(3, game.getLives());
+        assertEquals("", game.getMessage());
+    }
+
+    @Test
+    public void closingSecondBringsNoArrival() {
+        // Days 3, 5, 6 and 7 have gaps that divide 60, so without this rule a
+        // customer would arrive on the last second and always cost a life.
+        tickAndServe(180);
+        assertEquals(3, game.getLives());
+        assertEquals(0, game.getQueueSize());
+    }
+
+    @Test
+    public void leftoverCustomersAtTheEndOfDaySevenCountToo() {
+        tickAndServe(7 * 60 - 6);
+        tick(5); // one customer arrives at 55 s and is left waiting
+        tick(1);
+        assertEquals(GameState.Status.WON, game.getStatus());
+        assertEquals(2, game.getLives());
     }
 
     // ---- random arrival gaps ----
@@ -467,7 +543,7 @@ public class GameStateTest {
 
     @Test
     public void cupActionsDoNothingAfterTheGameEnds() {
-        tick(74); // lost, see thirdLostLifeEndsTheGame
+        tick(60); // lost, see leftoverCustomersBeyondYourLivesLoseTheGame
         assertFalse(game.addIngredient("Milk"));
         game.clearCup();
         assertTrue(game.getCup().isEmpty());
@@ -498,7 +574,7 @@ public class GameStateTest {
 
     @Test
     public void queueSizeNeverExceedsCapacity() {
-        tick(60);
+        tick(59);
         assertEquals(6, game.getQueueSize());
         assertEquals(6, game.getQueueCapacity());
     }

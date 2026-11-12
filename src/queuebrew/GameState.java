@@ -155,7 +155,8 @@ public class GameState implements GameInfo {
         }
         secondsLeftInDay--;
         secondsSinceArrival++;
-        if (secondsSinceArrival >= currentArrivalInterval) {
+        // the shop is closed on the last second of the day: nobody arrives
+        if (secondsLeftInDay > 0 && secondsSinceArrival >= currentArrivalInterval) {
             secondsSinceArrival = 0;
             addArrival();
             currentArrivalInterval = nextArrivalInterval(day);
@@ -256,6 +257,17 @@ public class GameState implements GameInfo {
     }
 
     private void endDay() {
+        int leftover = line.getSize();
+        if (leftover > 0) {
+            lives = Math.max(0, lives - leftover);
+            message = leftover + (leftover == 1 ? " customer was" : " customers were")
+                + " still in line at closing: -" + leftover
+                + (leftover == 1 ? " life." : " lives.");
+            if (lives == 0) {
+                status = Status.LOST;
+                return;
+            }
+        }
         if (day == TOTAL_DAYS) {
             status = Status.WON;
         }
@@ -264,6 +276,10 @@ public class GameState implements GameInfo {
             secondsLeftInDay = SECONDS_PER_DAY;
             secondsSinceArrival = 0;
             currentArrivalInterval = nextArrivalInterval(day);
+            // closing time: everyone goes home and the counter is wiped
+            line.clear();
+            cup.clear();
+            penaltySecondsLeft = 0;
             betweenDays = true;
         }
     }

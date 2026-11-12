@@ -137,7 +137,8 @@ public class QueueBrewGUI implements GameListener {
                 + " days.";
         }
         else if (info.getStatus() == GameState.Status.LOST) {
-            text = "Game over - you ran out of lives.";
+            text = "Game over - you ran out of lives."
+                + (text.isEmpty() ? "" : " " + text);
         }
         if (info.getStatus() == GameState.Status.PLAYING
             && info.getPenaltySecondsLeft() > 0) {
@@ -168,7 +169,9 @@ public class QueueBrewGUI implements GameListener {
         int finished = info.getDay() - 1;
         JOptionPane.showMessageDialog(frame,
             "Congratulations! You completed day " + finished + ".\n"
-                + "Lives left: " + info.getLives() + "\n\n"
+                + (info.getMessage().isEmpty() ? "" : info.getMessage() + "\n")
+                + "Lives left: " + info.getLives() + "\n"
+                + "The shop closes for the night and the line clears.\n\n"
                 + "Click OK to start day " + info.getDay() + ".",
             "Day " + finished + " complete", JOptionPane.INFORMATION_MESSAGE);
         dayDialogOpen = false;

@@ -64,6 +64,14 @@ public class Line {
     }
 
     /**
+     * Removes everyone from the line.
+     */
+    public void clear() {
+        Arrays.fill(items, 0, size, null);
+        size = 0;
+    }
+
+    /**
      * @return the front customer without removing them, or null if the line is
      *         empty
      */

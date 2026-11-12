@@ -116,6 +116,25 @@ public class LineTest {
     }
 
     @Test
+    public void clearEmptiesTheLineAndItCanBeReused() {
+        line.enqueue(alex);
+        line.enqueue(sam);
+        line.clear();
+        assertTrue(line.isEmpty());
+        assertEquals(0, line.toArray().length);
+        assertNull(line.peek());
+        assertEquals(6, line.getCapacity());
+        assertTrue(line.enqueue(mia));
+        assertSame(mia, line.peek());
+    }
+
+    @Test
+    public void clearOnEmptyLineIsHarmless() {
+        line.clear();
+        assertTrue(line.isEmpty());
+    }
+
+    @Test
     public void toArrayIsACopy() {
         line.enqueue(alex);
         line.enqueue(sam);
