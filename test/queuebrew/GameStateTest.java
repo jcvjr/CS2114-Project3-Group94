@@ -303,9 +303,22 @@ public class GameStateTest {
     }
 
     @Test
+    public void noCustomerArrivesInTheLastThreeSeconds() {
+        for (long seed = 0; seed < 60; seed++) {
+            game = new GameState(new Random(seed));
+            for (int second : arrivalSecondsOnDayOne()) {
+                assertTrue(second <= GameState.SECONDS_PER_DAY
+                    - GameState.CLOSING_SECONDS_WITHOUT_ARRIVALS,
+                    "seed " + seed + " arrival at " + second);
+            }
+        }
+    }
+
+    @Test
     public void closingSecondBringsNoArrival() {
-        // Days 3, 5, 6 and 7 have gaps that divide 60, so without this rule a
-        // customer would arrive on the last second and always cost a life.
+        // Days 3, 5, 6 and 7 have gaps that divide 60, so without a quiet
+        // period at closing a customer would arrive on the last second and
+        // always cost a life.
         tickAndServe(180);
         assertEquals(3, game.getLives());
         assertEquals(0, game.getQueueSize());

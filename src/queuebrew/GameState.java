@@ -32,6 +32,8 @@ public class GameState implements GameInfo {
     public static final int MIN_ARRIVAL_INTERVAL_SECONDS = 5;
     /** Each gap between arrivals varies by up to this many seconds. */
     public static final int ARRIVAL_JITTER_SECONDS = 2;
+    /** No customer arrives during the last this-many seconds of a day. */
+    public static final int CLOSING_SECONDS_WITHOUT_ARRIVALS = 3;
     /** No two customers ever arrive closer together than this. */
     public static final int MIN_ARRIVAL_GAP_SECONDS = 2;
 
@@ -155,8 +157,9 @@ public class GameState implements GameInfo {
         }
         secondsLeftInDay--;
         secondsSinceArrival++;
-        // the shop is closed on the last second of the day: nobody arrives
-        if (secondsLeftInDay > 0 && secondsSinceArrival >= currentArrivalInterval) {
+        // nobody arrives in the last few seconds of the day
+        if (secondsLeftInDay >= CLOSING_SECONDS_WITHOUT_ARRIVALS
+            && secondsSinceArrival >= currentArrivalInterval) {
             secondsSinceArrival = 0;
             addArrival();
             currentArrivalInterval = nextArrivalInterval(day);
