@@ -29,7 +29,7 @@ public class GameState implements GameInfo {
     /** How much the arrival interval shrinks each day after day 1. */
     public static final int ARRIVAL_INTERVAL_DECREASE_PER_DAY = 1;
     /** The shortest allowed arrival interval. */
-    public static final int MIN_ARRIVAL_INTERVAL_SECONDS = 3;
+    public static final int MIN_ARRIVAL_INTERVAL_SECONDS = 5;
 
     /** Message when the player completes an order with nobody in line. */
     public static final String EMPTY_MESSAGE =
@@ -38,18 +38,31 @@ public class GameState implements GameInfo {
     public static final String TURNED_AWAY_MESSAGE =
         "The line was full - a customer was turned away!";
 
+    /** Most ingredients a cup can hold. */
+    public static final int CUP_CAPACITY = 6;
+    /** Message when the player tries to complete with an empty cup. */
+    public static final String EMPTY_CUP_MESSAGE =
+        "The cup is empty - add ingredients first.";
+    /** Message when the cup does not match the front order. */
+    public static final String WRONG_ORDER_MESSAGE =
+        "Wrong order! The cup was dumped - try again.";
+    /** Seconds the player is locked out after serving a wrong order. */
+    public static final int WRONG_ORDER_PENALTY_SECONDS = 3;
+    /** Message when the player adds to a full cup. */
+    public static final String CUP_FULL_MESSAGE = "The cup is full.";
+
     private static final String[] NAMES = { "Alex", "Sam", "Mia", "Jordan",
         "Riley", "Taylor", "Casey", "Morgan", "Jamie", "Avery" };
-    private static final String[] DRINKS = { "Black Coffee", "Latte",
-        "Cappuccino", "Mocha", "Espresso", "Vanilla Caramel Latte" };
 
     private final Line line;
+    private final List<String> cup;
     private final Random random;
     private final List<GameListener> listeners;
     private int lives;
     private int day;
     private int secondsLeftInDay;
     private int secondsSinceArrival;
+    private int penaltySecondsLeft;
     private Status status;
     private String message;
 
@@ -75,6 +88,7 @@ public class GameState implements GameInfo {
         }
         this.random = random;
         line = new Line(QUEUE_CAPACITY);
+        cup = new ArrayList<>();
         listeners = new ArrayList<>();
         lives = STARTING_LIVES;
         day = 1;
@@ -107,6 +121,9 @@ public class GameState implements GameInfo {
             return;
         }
         message = "";
+        if (penaltySecondsLeft > 0) {
+            penaltySecondsLeft--;
+        }
         secondsLeftInDay--;
         secondsSinceArrival++;
         if (secondsSinceArrival >= arrivalIntervalForDay(day)) {
@@ -120,24 +137,85 @@ public class GameState implements GameInfo {
     }
 
     /**
-     * Removes the customer at the front of the line.
+     * Adds one ingredient to the cup.
      *
-     * @return true if a customer was removed; false if the line was empty or
-     *         the game is over
+     * @param ingredient
+     *            an ingredient from the menu
+     * @return true if added; false if the cup is full or the game is over
+     * @throws IllegalArgumentException
+     *             if ingredient is null or not on the menu
      */
-    public boolean completeFrontOrder() {
-        if (status != Status.PLAYING) {
+    public boolean addIngredient(String ingredient) {
+        if (!Menu.isIngredient(ingredient)) {
+            throw new IllegalArgumentException("unknown ingredient: "
+                + ingredient);
+        }
+        if (status != Status.PLAYING || penaltySecondsLeft > 0) {
             return false;
         }
-        boolean removed = line.dequeue() != null;
-        message = removed ? "" : EMPTY_MESSAGE;
+        if (cup.size() >= CUP_CAPACITY) {
+            message = CUP_FULL_MESSAGE;
+            notifyListeners();
+            return false;
+        }
+        cup.add(ingredient);
+        message = "";
         notifyListeners();
-        return removed;
+        return true;
+    }
+
+    /**
+     * Empties the cup. Does nothing if the game is over or the player is
+     * serving a wrong-order penalty.
+     */
+    public void clearCup() {
+        if (status != Status.PLAYING || penaltySecondsLeft > 0) {
+            return;
+        }
+        cup.clear();
+        message = "";
+        notifyListeners();
+    }
+
+    /**
+     * Serves the front customer if the cup matches their recipe. A wrong cup
+     * is dumped, the customer keeps waiting, and the player cannot act for
+     * {@link #WRONG_ORDER_PENALTY_SECONDS} seconds; no life is lost.
+     *
+     * @return true if the front customer was served; false if the line was
+     *         empty, the cup was empty or wrong, the player is serving a
+     *         penalty, or the game is over
+     */
+    public boolean completeFrontOrder() {
+        if (status != Status.PLAYING || penaltySecondsLeft > 0) {
+            return false;
+        }
+        Customer front = line.peek();
+        boolean served = false;
+        if (front == null) {
+            message = EMPTY_MESSAGE;
+        }
+        else if (cup.isEmpty()) {
+            message = EMPTY_CUP_MESSAGE;
+        }
+        else if (!front.getOrder().matches(cup)) {
+            cup.clear();
+            penaltySecondsLeft = WRONG_ORDER_PENALTY_SECONDS;
+            message = WRONG_ORDER_MESSAGE;
+        }
+        else {
+            line.dequeue();
+            cup.clear();
+            message = "";
+            served = true;
+        }
+        notifyListeners();
+        return served;
     }
 
     private void addArrival() {
         Customer arriving = new Customer(NAMES[random.nextInt(NAMES.length)],
-            new Order(DRINKS[random.nextInt(DRINKS.length)]));
+            Menu.randomOrder(random));
         if (!line.enqueue(arriving)) {
             lives--;
             message = TURNED_AWAY_MESSAGE;
@@ -208,5 +286,25 @@ public class GameState implements GameInfo {
     @Override
     public String getMessage() {
         return message;
+    }
+
+    @Override
+    public int getPenaltySecondsLeft() {
+        return penaltySecondsLeft;
+    }
+
+    @Override
+    public List<String> getCup() {
+        return new ArrayList<>(cup);
+    }
+
+    @Override
+    public List<String> getIngredients() {
+        return Menu.getIngredients();
+    }
+
+    @Override
+    public List<String> getRecipeCard() {
+        return Menu.getRecipeCard();
     }
 }

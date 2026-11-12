@@ -33,6 +33,23 @@ public class QueueBrew {
     }
 
     /**
+     * Called by the view when the player clicks an ingredient button.
+     *
+     * @param ingredient
+     *            the ingredient to add to the cup
+     */
+    public void onIngredientClicked(String ingredient) {
+        game.addIngredient(ingredient);
+    }
+
+    /**
+     * Called by the view when the player clicks Clear Cup.
+     */
+    public void onClearCupClicked() {
+        game.clearCup();
+    }
+
+    /**
      * Called by the view when the player clicks Complete Order.
      */
     public void onCompleteClicked() {

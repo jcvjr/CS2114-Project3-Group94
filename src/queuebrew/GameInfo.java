@@ -44,4 +44,26 @@ public interface GameInfo {
      * @return the latest message for the player, or "" if there is none
      */
     String getMessage();
+
+    /**
+     * @return seconds left in the wrong-order penalty, during which the player
+     *         cannot act; 0 when there is no penalty
+     */
+    int getPenaltySecondsLeft();
+
+    /**
+     * @return a copy of the ingredients currently in the cup, in the order
+     *         they were added
+     */
+    java.util.List<String> getCup();
+
+    /**
+     * @return the ingredients the player can add
+     */
+    java.util.List<String> getIngredients();
+
+    /**
+     * @return one line per drink showing its recipe
+     */
+    java.util.List<String> getRecipeCard();
 }

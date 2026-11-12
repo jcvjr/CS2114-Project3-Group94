@@ -1,7 +1,10 @@
 package queuebrew;
 
 import java.awt.BorderLayout;
+import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.util.ArrayList;
+import java.util.List;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -9,11 +12,13 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
 
 /**
- * Thin view: draws what {@link GameInfo} reports and passes the Complete Order
- * click to the controller. Keeps no copy of the game state between redraws.
+ * Thin view: draws what {@link GameInfo} reports and passes the player's clicks
+ * (ingredients, Clear Cup, Complete Order) to the controller. Keeps no copy of
+ * the game state between redraws.
  */
 public class QueueBrewGUI implements GameListener {
 
@@ -24,7 +29,10 @@ public class QueueBrewGUI implements GameListener {
     private final JLabel livesLabel;
     private final JLabel queueCountLabel;
     private final JLabel messageLabel;
+    private final JLabel cupLabel;
     private final DefaultListModel<String> queueModel;
+    private final List<JButton> ingredientButtons;
+    private final JButton clearButton;
     private final JButton completeButton;
 
     /**
@@ -33,7 +41,7 @@ public class QueueBrewGUI implements GameListener {
      * @param info
      *            read-only access to the game
      * @param controller
-     *            told when the player clicks Complete Order
+     *            told when the player clicks something
      */
     public QueueBrewGUI(GameInfo info, QueueBrew controller) {
         this.info = info;
@@ -55,15 +63,37 @@ public class QueueBrewGUI implements GameListener {
         queueModel = new DefaultListModel<>();
         frame.add(new JScrollPane(new JList<>(queueModel)), BorderLayout.CENTER);
 
+        JTextArea recipeCard = new JTextArea(
+            "RECIPES\n" + String.join("\n", info.getRecipeCard()));
+        recipeCard.setEditable(false);
+        frame.add(recipeCard, BorderLayout.EAST);
+
+        ingredientButtons = new ArrayList<>();
+        JPanel ingredients = new JPanel(new FlowLayout());
+        for (String name : info.getIngredients()) {
+            JButton button = new JButton(name);
+            button.addActionListener(e -> controller.onIngredientClicked(name));
+            ingredientButtons.add(button);
+            ingredients.add(button);
+        }
+        cupLabel = new JLabel(" ", SwingConstants.CENTER);
         messageLabel = new JLabel(" ", SwingConstants.CENTER);
+        clearButton = new JButton("Clear Cup");
+        clearButton.addActionListener(e -> controller.onClearCupClicked());
         completeButton = new JButton("Complete Order");
         completeButton.addActionListener(e -> controller.onCompleteClicked());
-        JPanel bottom = new JPanel(new GridLayout(2, 1));
+        JPanel actions = new JPanel(new GridLayout(1, 2));
+        actions.add(clearButton);
+        actions.add(completeButton);
+
+        JPanel bottom = new JPanel(new GridLayout(4, 1));
         bottom.add(messageLabel);
-        bottom.add(completeButton);
+        bottom.add(cupLabel);
+        bottom.add(ingredients);
+        bottom.add(actions);
         frame.add(bottom, BorderLayout.SOUTH);
 
-        frame.setSize(360, 420);
+        frame.setSize(640, 480);
         gameChanged();
     }
 
@@ -92,6 +122,10 @@ public class QueueBrewGUI implements GameListener {
             position++;
         }
 
+        List<String> cup = info.getCup();
+        cupLabel.setText(cup.isEmpty() ? "Cup: (empty)"
+            : "Cup: " + String.join(" + ", cup));
+
         String text = info.getMessage();
         if (info.getStatus() == GameState.Status.WON) {
             text = "You win! You survived all " + GameState.TOTAL_DAYS
@@ -100,7 +134,19 @@ public class QueueBrewGUI implements GameListener {
         else if (info.getStatus() == GameState.Status.LOST) {
             text = "Game over - you ran out of lives.";
         }
+        if (info.getStatus() == GameState.Status.PLAYING
+            && info.getPenaltySecondsLeft() > 0) {
+            text = "Wrong order! Cleaning up the spill: "
+                + info.getPenaltySecondsLeft() + "s";
+        }
         messageLabel.setText(text.isEmpty() ? " " : text);
-        completeButton.setEnabled(info.getStatus() == GameState.Status.PLAYING);
+
+        boolean playing = info.getStatus() == GameState.Status.PLAYING
+            && info.getPenaltySecondsLeft() == 0;
+        completeButton.setEnabled(playing);
+        clearButton.setEnabled(playing);
+        for (JButton button : ingredientButtons) {
+            button.setEnabled(playing);
+        }
     }
 }

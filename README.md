@@ -1,6 +1,6 @@
 # Queue Brew (CS 2114 Project 3, Group 94)
 
-A coffee-shop game. Customers arrive on their own and join a fixed-size, array-based FIFO line. The player serves the front order with **Complete Order**. If a customer arrives while the line is full, they are turned away and the player loses a life (3 lives). Survive 7 days (60 seconds each) with at least one life to win.
+A coffee-shop game. Customers arrive on their own and join a fixed-size, array-based FIFO line. The player makes the front customer's drink by clicking its ingredients into a cup (see the recipe card in the window), then clicks **Complete Order**. A wrong cup is dumped, the customer keeps waiting, and the player is locked out for 3 seconds. If a customer arrives while the line is full, they are turned away and the player loses a life (3 lives). Survive 7 days (60 seconds each) with at least one life to win.
 
 Deliverable 3: first prototype. The model (`Line`, `Customer`, `Order`, `TimeUtil`, `GameState`) is complete and tested without any GUI. The view (`QueueBrewGUI`) and controller (`QueueBrew`) are a thin but playable slice.
 
@@ -9,21 +9,23 @@ Deliverable 3: first prototype. The model (`Line`, `Customer`, `Order`, `TimeUti
 ```
 src/queuebrew/
   Order, Customer, Line, TimeUtil   model data and the array-based queue
-  GameState                         model: lives, day, clock, arrivals, win/lose
+  Menu                              model: ingredients and each drink's recipe
+  GameState                         model: lives, day, clock, arrivals, cup, win/lose
   GameInfo, GameListener            the model/view boundary (read-only getters + one callback)
   ModelDriver                       console driver: plays a full game, no window
   QueueBrew                         controller: owns the 1-second Timer, wires model and view
   QueueBrewGUI                      thin Swing view
 test/queuebrew/
-  OrderAndCustomerTest, LineTest, TimeUtilTest, GameStateTest   JUnit 5, no GUI
+  OrderAndCustomerTest, MenuAndOrderTest, LineTest, TimeUtilTest, GameStateTest   JUnit 5, no GUI
 ```
 
 ## How to run
 
 This is an Eclipse project (`.classpath` / `.project` included, JUnit 5 on the classpath). Use *File > Import > Existing Projects into Workspace*.
 
-- **Tests (model only, no view):** right-click the `test` folder > *Run As > JUnit Test*. 38 tests, all passing at hand-in.
-- **Model driver (no view):** run `queuebrew.ModelDriver`. It plays a whole 7-day game in the console with a seeded Random. Pass a program argument for how many seconds the simulated player waits between completions: default `2` ends in a win, `100` ends in a loss.
+- **Tests (model only, no view):** right-click the `test` folder > *Run As > JUnit Test*. 60 tests, all passing at hand-in.
+- **Model driver (no view):** run `queuebrew.ModelDriver`. It plays a whole 7-day game in the console with a seeded Random: the simulated player adds one correct ingredient per second and completes each order, and wins. Pass the program argument `lazy` for a player who never serves anyone, which loses.
+- **How to play:** click ingredient buttons to fill the cup so it matches the front customer's recipe (the recipe card is on the right), then click Complete Order. Clear Cup empties the cup. A wrong cup locks all the buttons for 3 seconds.
 - **Thin view (the game):** run `queuebrew.QueueBrew`.
 
 From a command line with a JDK, the driver and game do not need JUnit:
@@ -34,20 +36,42 @@ java -cp bin queuebrew.ModelDriver
 java -cp bin queuebrew.QueueBrew
 ```
 
+## Changes from Spec / Scope to Prototype
+
+This is a running log. Every time the prototype departs from the Scope or the Specification, add a row (newest last) and say why. "Scope" is the Group 94 Scope document; "Spec" is the QueueBrew Specification.
+
+| # | Area | Scope / Spec said | Prototype does | Why |
+|---|---|---|---|---|
+| 1 | Architecture (Scope to Spec) | Scope: model and view only, view talks to the model. | Spec and prototype add a controller, `QueueBrew`, between them. | Done in the Spec (its section 9). The controller owns the timer and forwards clicks, so the model has no Swing code. |
+| 2 | Arrival timing | Spec prose: a customer every 5 s. Constants table, formula and day-2 test: 8 s on day 1. | 8 s on day 1, 1 s faster per day. | The spec contradicted itself. We followed the table, formula and day-2 test. The "tick 5 times, expect one customer" test became "8 ticks". |
+| 3 | `Customer.secondsWaiting` | Spec field, read by the patience-timer stretch goal. | Not built. | Nothing reads it yet and the spec gave it no getter. Add it with the patience timer, if we do that. |
+| 4 | Validation strictness | `Order`/`Customer` reject null or empty. | Also reject blank (whitespace-only) text. | The spec's own test table hinted at it, and a name of spaces is as bad as an empty one. |
+| 5 | Messages | Spec gave two message texts, and never said when a message goes away. | Messages are public constants in `GameState`. `tick()` clears the message at the start of each tick, and a successful action clears it. | Fills a gap, and keeps tests and the view from retyping the text. |
+| 6 | `arrivalIntervalForDay` | Spec: private, and "can be static". | `private static`, tested through behavior (8 s on day 1, 7 s on day 2). | Spec had it private. Behavior tests are enough. |
+| 7 | Test plan | One normal and one bad-input test per public method. | Tests are grouped by behavior (60 now). Trivial getters are covered inside scenario tests. Added tests the spec did not list (see rows below). | Fewer, more meaningful tests. Every spec'd case is still covered. |
+| 8 | Console driver | Not in the spec. | `ModelDriver` plays a whole game with no window. | The "tiny driver" the Deliverable 3 rubric asks for. |
+| 9 | **Making the drink** (new) | Scope MVP: one "Complete Order" button that removes the front order. Scope "What we don't know": "How do we complete the order? Choosing buttons that are the components of the coffee?" Spec: `Order` holds only a drink name. | The player adds ingredients to a cup with buttons, then clicks Complete Order. It only serves the front customer if the cup matches that drink's recipe. | Answers that Scope unknown, and makes the game more than clicking one button. |
+| 10 | `Menu` class (new) | Not in the spec. | `Menu` holds the ingredient list, each drink's recipe, the recipe card text and random order generation. | Recipes had to live somewhere in the model. It replaces the `DRINKS` array inside `GameState`. |
+| 11 | `Order` (new) | `Order(String drink)` and `getDrink()` only. | Adds `getIngredients()` and `matches(cup)`, plus a second constructor `Order(drink, ingredients)`. `Order(drink)` now looks the recipe up in `Menu` and rejects drinks not on the menu. Matching ignores order and checks counts. | Needed to check a cup. |
+| 12 | `GameState` (new) | Spec: `completeFrontOrder()` removes the front customer, and fails only on an empty line. | New `addIngredient(String)` and `clearCup()`, plus constants `CUP_CAPACITY` (6) and new messages. `completeFrontOrder()` now also fails on an empty cup (message, customer stays) and on a wrong cup (cup dumped, message, customer stays). | Wrong order was an open question in the Scope ("what are the impacts of this?"). We chose: no life lost, but the cup is dumped, which costs the player time. |
+| 13 | `GameInfo` (new) | Eight getters. | Adds `getCup()`, `getIngredients()` and `getRecipeCard()`. | The view needs these to draw buttons and the cup without touching `Menu` or `GameState` internals. |
+| 14 | `QueueBrew` and view (new) | One controller method, `onCompleteClicked()`. | Adds `onIngredientClicked(String)` and `onClearCupClicked()`. The view gets ingredient buttons, a Clear Cup button, a cup display and a recipe card. | Wiring for row 9. The controller still has no rules, it only forwards clicks. |
+| 15 | Arrival speed floor (new) | Spec: minimum interval 3 s. | Minimum interval 5 s, so arrivals go 8, 7, 6, 5, 5, 5, 5 s by day. | Making a drink takes several clicks, so 3 s arrivals on days 6 and 7 would be impossible. Not yet playtested by a person. |
+| 16 | Driver (new) | Driver completed the front order on a timer. | Driver now builds each drink correctly, one ingredient per second. `lazy` argument shows a loss. | Same reason as row 9. |
+| 17 | Tests (new) | Spec tests assume `completeFrontOrder()` removes the front customer directly. | A test helper makes the correct cup first. New tests cover the cup, wrong order, empty cup, full cup, unknown ingredient, and `Menu`/`Order` recipes. Spec test cases for tick and the getters are otherwise unchanged. | Follows from rows 9 to 13. |
+| 18 | **Wrong-order time penalty** (new) | Scope: "Making the wrong order, what are the impacts of this?" was open. Row 12 first answered it with only a dumped cup. | A wrong cup also locks the player out for `WRONG_ORDER_PENALTY_SECONDS` (3) seconds. During that time `addIngredient`, `clearCup` and `completeFrontOrder` do nothing and return false, and the view disables the buttons and shows a countdown. `GameInfo` gets `getPenaltySecondsLeft()`. The penalty counts down in `tick()`. | A dumped cup alone cost almost nothing, since the player could just rebuild it. A time penalty makes mistakes matter without costing a life. 3 s is a first guess to be playtested. 4 new tests. |
+
 ## Reflection
 
 ### What changed from our specification?
 
-The classes and method signatures in the spec were built as written. The differences, and why:
+The classes and method signatures in the spec were built as written, and then extended. See the **Changes from Spec / Scope to Prototype** table above for the full list with reasons. The short version:
 
-- **Arrival timing: the spec contradicted itself.** Section 4 said "one new customer every 5 seconds" in prose, but its constants table, the `arrivalIntervalForDay` formula and the day-2 test all assume 8 seconds on day 1 (down 1 second per day, minimum 3). The test plan also said "tick 5 times, expect one customer". We followed the table and formula (8 s), so that test became "7 ticks: nobody; 8th tick: one customer" (`firstCustomerArrivesAfterEightSeconds`).
-- **`Customer.secondsWaiting` was not built.** The spec listed the field, but nothing reads it until the patience-timer stretch goal, and it had no getter or setter. We will add it with that feature, if we attempt it.
-- **Stricter validation.** `Order` and `Customer` reject blank (whitespace-only) text as well as null and empty, using `isBlank()`. The spec's test table itself hints at this ("whitespace-only text if such input is rejected").
-- **Message handling filled in a gap.** The spec never said when a message goes away. `tick()` clears the message at the start of each tick, and a successful `completeFrontOrder()` clears it. The empty-line and turned-away messages are public constants in `GameState` so tests and the view do not retype them.
-- **`GameState.arrivalIntervalForDay` is `private static`.** We test it through behavior (day 1 arrives at 8 s, day 2 at 7 s) instead of calling it directly.
-- **Tests are grouped differently.** The spec had one normal and one bad-input test per method. We wrote 38 tests grouped by behavior. Trivial getters are covered inside the scenario tests (for example `getQueueCapacity` inside `queueSizeNeverExceedsCapacity`). We added a few the spec did not list: FIFO order after dequeue-then-enqueue on a full line, message clearing, and same-seed repeatability.
-- **Added `ModelDriver`**, a console driver that plays a complete game with no window. It is not in the spec. It is the "tiny driver" the rubric asks for.
-- **Validation lives where the spec said.** Rules live in the model (`Line`, `GameState`, the `Order`/`Customer` constructors). The view only displays `getMessage()`. The controller does not validate anything.
+- The spec contradicted itself on the arrival interval (5 s in prose, 8 s in the table, formula and tests). We followed the table.
+- `Customer.secondsWaiting` was dropped until a feature needs it, and validation became stricter (blank text is rejected).
+- The biggest change is the **cup**: the Scope listed "how do we complete the order?" as an unknown, and we answered it. Orders now have recipes (`Menu`, `Order`), `GameState` tracks a cup, and Complete Order checks it. This changed `completeFrontOrder()`, `GameInfo`, the controller and the view.
+- Tests are grouped by behavior instead of one normal and one bad-input test per method, and `ModelDriver` was added.
+- **Validation lives where the spec said.** Rules live in the model (`Line`, `GameState`, `Order`, `Customer`, `Menu`). The view only displays `getMessage()`. The controller does not validate anything. The cup is checked in `GameState`, not in the GUI.
 
 ### Did the model really stand alone?
 
@@ -65,12 +89,12 @@ Yes. Nothing in the five model classes imports Swing or `java.awt`, and `GameSta
 | Implementing automatic arrivals and the day countdown | **Answered:** the controller's 1-second `Timer` calls `GameState.tick()`. The model counts seconds itself, so no real clock is needed to test it. |
 | How to test this kind of game | **Answered for the model:** inject a seeded `Random`, call `tick()` in a loop, assert on state. No GUI is needed. **Open for the view:** we have no automated GUI tests. |
 | Queue capacity | **Provisional:** 6. Not yet playtested by a person. |
-| Arrival rate, and whether it should change per day | **Provisional:** 8 s on day 1, 1 s faster each day, minimum 3 s. In the driver, a player who serves every 6 s survives until day 6 and then loses, so days 6 and 7 (3 to 4 s arrivals) may be too hard. Needs playtesting. |
+| Arrival rate, and whether it should change per day | **Provisional:** 8 s on day 1, 1 s faster each day, minimum 5 s (raised from 3 s because making a drink takes several clicks). A human has not played it yet, so days 5 to 7 may still be too hard. Needs playtesting. |
 | Day length / game length for a demo | **Open:** `SECONDS_PER_DAY` is a single constant, so it is easy to change. Not yet decided. |
 | Manual "add order" form | **Dropped:** automatic arrivals plus the seeded driver cover testing, so the form is not needed. |
 | Score | **Open:** win/lose only for now. |
 | Patience timers while keeping FIFO | **Open:** not started. The idea is to check only the front customer, since removing from the middle breaks FIFO. |
-| How to complete an order (coffee-component buttons?) and what a wrong order does | **Open:** the MVP uses one Complete Order button, so a wrong order cannot happen yet. |
+| How to complete an order (coffee-component buttons?) and what a wrong order does | **Answered:** the player clicks ingredient buttons to fill a cup, then Complete Order checks it against the front customer's recipe. A wrong cup is dumped and the customer keeps waiting, with no life lost. The penalty is now a 3-second lockout (see change-log row 18); whether it is the right size is open until playtested. |
 
 ### What doesn't work yet?
 
@@ -97,7 +121,7 @@ Prediction of what it will touch:
 
 | Class | Change? | Why |
 |---|---|---|
-| `Order` | **Yes (model)** | Add `getPrepSeconds()`; a constructor taking prep time (the old one gets a default). |
+| `Order` | **Yes (model)** | Add `getPrepSeconds()`; each drink's prep time would come from `Menu`, so `Menu` changes too. |
 | `GameState` | **Yes (model)** | New state: the order being prepared and seconds left. `tick()` counts it down and finishes the order. `completeFrontOrder()` now means "start preparing". It needs rules for clicking while already preparing. |
 | `GameInfo` | **Yes (boundary)** | One new getter for the prep seconds left, so the view can show it. |
 | `QueueBrewGUI` | **Yes (view)** | Display the progress and disable the button while preparing. |
@@ -147,6 +171,8 @@ Roles follow the spec's Division of Work. [TEAM: confirm each owner before submi
 | `QueueBrew.java` | JC | Wrote controller; GenAI-assisted |
 | `QueueBrewGUI.java` | Shea | Wrote thin view; GenAI-assisted |
 | `OrderAndCustomerTest.java` | Veronica | Tested; GenAI-assisted |
+| `Menu.java` | Veronica | Added with the cup feature; GenAI-assisted |
+| `MenuAndOrderTest.java` | Veronica | Tested; GenAI-assisted |
 | `LineTest.java` | Nandini | Tested; GenAI-assisted |
 | `TimeUtilTest.java` | Nandini | Tested; GenAI-assisted |
 | `GameStateTest.java` | Veronica | Tested; GenAI-assisted |
@@ -154,4 +180,4 @@ Roles follow the spec's Division of Work. [TEAM: confirm each owner before submi
 
 ### GenAI note
 
-We gave Claude our Scope and Specification (class design, method signatures, validation table and test plan) and the Deliverable 3 requirements, and asked it to implement the model, a thin Swing view and controller, JUnit tests, a console driver and the README. We kept the spec's class design and method signatures as written. Claude found that the spec said both "every 5 seconds" and "8 seconds" for arrivals, and followed the constants table. It also removed the unused `secondsWaiting` field, and we kept that change. It ran the 38 tests (all pass), the driver, and launched the GUI for a few seconds without errors. [TEAM: add what you personally reviewed or changed, what you asked Claude about the change feature, and anything you rejected.]
+We gave Claude our Scope and Specification (class design, method signatures, validation table and test plan) and the Deliverable 3 requirements, and asked it to implement the model, a thin Swing view and controller, JUnit tests, a console driver and the README. We kept the spec's class design and method signatures as written. Claude found that the spec said both "every 5 seconds" and "8 seconds" for arrivals, and followed the constants table. It also removed the unused `secondsWaiting` field, and we kept that change. It ran the 38 tests (all pass), the driver, and launched the GUI for a few seconds without errors. We later asked Claude to add the step of making the drink before completing it, and to keep the "Changes from Spec / Scope to Prototype" table up to date. It added `Menu`, the cup logic and tests, raised the minimum arrival interval from 3 s to 5 s, and its new tests caught a null-handling bug (`Menu.isIngredient(null)` threw a NullPointerException instead of the intended IllegalArgumentException), which it fixed. Then, at our request, it added a 3-second lockout for wrong orders. 60 tests pass. [TEAM: add what you personally reviewed or changed, what you asked Claude about the change feature, and anything you rejected.]

@@ -1,21 +1,22 @@
 package queuebrew;
 
+import java.util.Collections;
 import java.util.Random;
 
 /**
  * Plays a whole game with no window, to show the model stands on its own. The
- * simulated player completes the front order every few seconds. Run with an
- * optional seconds-between-completions argument (default 2, a win); a big number such
- * as 100 shows a loss.
+ * simulated player makes the front order correctly (one ingredient per second)
+ * and completes it. Pass "lazy" to make the player never serve, which shows a
+ * loss.
  */
 public class ModelDriver {
 
     /**
      * @param args
-     *            optional: seconds between order completions
+     *            optional: "lazy" for a player who never serves anyone
      */
     public static void main(String[] args) {
-        int every = args.length > 0 ? Integer.parseInt(args[0]) : 2;
+        boolean lazy = args.length > 0 && args[0].equals("lazy");
         GameState game = new GameState(new Random(94));
         game.addListener(() -> {
             if (!game.getMessage().isEmpty()) {
@@ -28,8 +29,8 @@ public class ModelDriver {
         while (game.getStatus() == GameState.Status.PLAYING) {
             game.tick();
             seconds++;
-            if (seconds % every == 0) {
-                game.completeFrontOrder();
+            if (!lazy) {
+                playOneSecond(game);
             }
             if (seconds % GameState.SECONDS_PER_DAY == 0) {
                 System.out.printf("[after %d s] day %d, line %d/%d, lives %d%n",
@@ -39,5 +40,25 @@ public class ModelDriver {
         }
         System.out.println("Final status: " + game.getStatus() + " after "
             + seconds + " seconds");
+    }
+
+    /** Adds the next missing ingredient, or completes when the cup is right. */
+    private static void playOneSecond(GameState game) {
+        Customer[] waiting = game.getWaitingCustomers();
+        if (waiting.length == 0) {
+            return;
+        }
+        Order order = waiting[0].getOrder();
+        if (order.matches(game.getCup())) {
+            game.completeFrontOrder();
+            return;
+        }
+        for (String needed : order.getIngredients()) {
+            if (Collections.frequency(game.getCup(), needed) < Collections
+                .frequency(order.getIngredients(), needed)) {
+                game.addIngredient(needed);
+                return;
+            }
+        }
     }
 }
