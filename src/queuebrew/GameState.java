@@ -28,8 +28,12 @@ public class GameState implements GameInfo {
     public static final int START_ARRIVAL_INTERVAL_SECONDS = 8;
     /** How much the arrival interval shrinks each day after day 1. */
     public static final int ARRIVAL_INTERVAL_DECREASE_PER_DAY = 1;
-    /** The shortest allowed arrival interval. */
+    /** The shortest a day's average arrival interval gets. */
     public static final int MIN_ARRIVAL_INTERVAL_SECONDS = 5;
+    /** Each gap between arrivals varies by up to this many seconds. */
+    public static final int ARRIVAL_JITTER_SECONDS = 2;
+    /** No two customers ever arrive closer together than this. */
+    public static final int MIN_ARRIVAL_GAP_SECONDS = 2;
 
     /** Message when the player completes an order with nobody in line. */
     public static final String EMPTY_MESSAGE =
@@ -63,6 +67,9 @@ public class GameState implements GameInfo {
     private int secondsLeftInDay;
     private int secondsSinceArrival;
     private int penaltySecondsLeft;
+    private final int arrivalJitter;
+    private int currentArrivalInterval;
+    private boolean betweenDays;
     private Status status;
     private String message;
 
@@ -83,10 +90,30 @@ public class GameState implements GameInfo {
      *             if random is null
      */
     public GameState(Random random) {
+        this(random, ARRIVAL_JITTER_SECONDS);
+    }
+
+    /**
+     * Creates a new game with a chosen amount of randomness in the gaps between
+     * arrivals. Tests pass 0 to get exact, repeatable timing.
+     *
+     * @param random
+     *            the source of random names, drinks and arrival gaps
+     * @param arrivalJitterSeconds
+     *            each gap is the day's interval plus or minus up to this many
+     *            seconds
+     * @throws IllegalArgumentException
+     *             if random is null or arrivalJitterSeconds is negative
+     */
+    public GameState(Random random, int arrivalJitterSeconds) {
         if (random == null) {
             throw new IllegalArgumentException("random must not be null");
         }
+        if (arrivalJitterSeconds < 0) {
+            throw new IllegalArgumentException("jitter must not be negative");
+        }
         this.random = random;
+        arrivalJitter = arrivalJitterSeconds;
         line = new Line(QUEUE_CAPACITY);
         cup = new ArrayList<>();
         listeners = new ArrayList<>();
@@ -96,6 +123,7 @@ public class GameState implements GameInfo {
         secondsSinceArrival = 0;
         status = Status.PLAYING;
         message = "";
+        currentArrivalInterval = nextArrivalInterval(day);
     }
 
     /**
@@ -114,10 +142,11 @@ public class GameState implements GameInfo {
     }
 
     /**
-     * Advances the game by one second. Does nothing if the game is over.
+     * Advances the game by one second. Does nothing if the game is over or the
+     * game is paused between days.
      */
     public void tick() {
-        if (status != Status.PLAYING) {
+        if (status != Status.PLAYING || betweenDays) {
             return;
         }
         message = "";
@@ -126,9 +155,10 @@ public class GameState implements GameInfo {
         }
         secondsLeftInDay--;
         secondsSinceArrival++;
-        if (secondsSinceArrival >= arrivalIntervalForDay(day)) {
+        if (secondsSinceArrival >= currentArrivalInterval) {
             secondsSinceArrival = 0;
             addArrival();
+            currentArrivalInterval = nextArrivalInterval(day);
         }
         if (status == Status.PLAYING && secondsLeftInDay == 0) {
             endDay();
@@ -150,7 +180,7 @@ public class GameState implements GameInfo {
             throw new IllegalArgumentException("unknown ingredient: "
                 + ingredient);
         }
-        if (status != Status.PLAYING || penaltySecondsLeft > 0) {
+        if (status != Status.PLAYING || betweenDays || penaltySecondsLeft > 0) {
             return false;
         }
         if (cup.size() >= CUP_CAPACITY) {
@@ -169,7 +199,7 @@ public class GameState implements GameInfo {
      * serving a wrong-order penalty.
      */
     public void clearCup() {
-        if (status != Status.PLAYING || penaltySecondsLeft > 0) {
+        if (status != Status.PLAYING || betweenDays || penaltySecondsLeft > 0) {
             return;
         }
         cup.clear();
@@ -187,7 +217,7 @@ public class GameState implements GameInfo {
      *         penalty, or the game is over
      */
     public boolean completeFrontOrder() {
-        if (status != Status.PLAYING || penaltySecondsLeft > 0) {
+        if (status != Status.PLAYING || betweenDays || penaltySecondsLeft > 0) {
             return false;
         }
         Customer front = line.peek();
@@ -233,13 +263,36 @@ public class GameState implements GameInfo {
             day++;
             secondsLeftInDay = SECONDS_PER_DAY;
             secondsSinceArrival = 0;
+            currentArrivalInterval = nextArrivalInterval(day);
+            betweenDays = true;
         }
+    }
+
+    /**
+     * Ends the pause between days so the next day can begin. Does nothing if
+     * the game is not paused between days.
+     */
+    public void startNextDay() {
+        if (!betweenDays) {
+            return;
+        }
+        betweenDays = false;
+        notifyListeners();
     }
 
     private static int arrivalIntervalForDay(int day) {
         return Math.max(MIN_ARRIVAL_INTERVAL_SECONDS,
             START_ARRIVAL_INTERVAL_SECONDS
                 - ARRIVAL_INTERVAL_DECREASE_PER_DAY * (day - 1));
+    }
+
+    private int nextArrivalInterval(int forDay) {
+        int base = arrivalIntervalForDay(forDay);
+        if (arrivalJitter == 0) {
+            return base;
+        }
+        int offset = random.nextInt(2 * arrivalJitter + 1) - arrivalJitter;
+        return Math.max(MIN_ARRIVAL_GAP_SECONDS, base + offset);
     }
 
     private void notifyListeners() {
@@ -286,6 +339,11 @@ public class GameState implements GameInfo {
     @Override
     public String getMessage() {
         return message;
+    }
+
+    @Override
+    public boolean isBetweenDays() {
+        return betweenDays;
     }
 
     @Override

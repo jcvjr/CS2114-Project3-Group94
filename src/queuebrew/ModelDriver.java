@@ -17,7 +17,7 @@ public class ModelDriver {
      */
     public static void main(String[] args) {
         boolean lazy = args.length > 0 && args[0].equals("lazy");
-        GameState game = new GameState(new Random(94));
+        GameState game = new GameState(new Random(94)); // random arrival gaps
         game.addListener(() -> {
             if (!game.getMessage().isEmpty()) {
                 System.out.printf("  day %d %s  lives=%d  %s%n", game.getDay(),
@@ -27,6 +27,10 @@ public class ModelDriver {
         });
         int seconds = 0;
         while (game.getStatus() == GameState.Status.PLAYING) {
+            if (game.isBetweenDays()) {
+                System.out.println("Day " + (game.getDay() - 1) + " complete!");
+                game.startNextDay();
+            }
             game.tick();
             seconds++;
             if (!lazy) {

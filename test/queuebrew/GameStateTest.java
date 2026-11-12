@@ -21,12 +21,20 @@ public class GameStateTest {
 
     @BeforeEach
     public void setUp() {
-        game = new GameState(new Random(1));
+        game = new GameState(new Random(1), 0); // no jitter: exact timing
+    }
+
+    /** One second, first ending any pause between days like the view would. */
+    private void tickOnce() {
+        if (game.isBetweenDays()) {
+            game.startNextDay();
+        }
+        game.tick();
     }
 
     private void tick(int times) {
         for (int i = 0; i < times; i++) {
-            game.tick();
+            tickOnce();
         }
     }
 
@@ -45,7 +53,7 @@ public class GameStateTest {
     /** Ticks one second at a time, serving the front order after each tick. */
     private void tickAndServe(int times) {
         for (int i = 0; i < times; i++) {
-            game.tick();
+            tickOnce();
             serveFront();
         }
     }
@@ -96,7 +104,7 @@ public class GameStateTest {
 
     @Test
     public void sameSeedGivesSameArrivals() {
-        GameState other = new GameState(new Random(1));
+        GameState other = new GameState(new Random(1), 0);
         tick(24);
         for (int i = 0; i < 24; i++) {
             other.tick();
@@ -152,6 +160,7 @@ public class GameStateTest {
     @Test
     public void dayTwoArrivalsCometEverySevenSeconds() {
         tickAndServe(60);
+        game.startNextDay();
         while (serveFront()) {
             // empty the line
         }
@@ -189,6 +198,112 @@ public class GameStateTest {
         assertEquals(seconds, game.getSecondsLeftInDay());
         assertEquals(day, game.getDay());
         assertEquals(0, calls[0]);
+    }
+
+    // ---- between days ----
+
+    @Test
+    public void endOfDayPausesTheGameUntilTheNextDayStarts() {
+        tickAndServe(60);
+        assertTrue(game.isBetweenDays());
+        assertEquals(2, game.getDay());
+        for (int i = 0; i < 5; i++) {
+            game.tick(); // ignored while paused
+        }
+        assertEquals(60, game.getSecondsLeftInDay());
+        assertEquals(0, game.getQueueSize());
+        assertFalse(game.addIngredient("Milk"));
+        assertFalse(game.completeFrontOrder());
+        game.startNextDay();
+        assertFalse(game.isBetweenDays());
+        game.tick();
+        assertEquals(59, game.getSecondsLeftInDay());
+    }
+
+    @Test
+    public void startNextDayNotifiesOnlyWhenPaused() {
+        int[] calls = { 0 };
+        game.addListener(() -> calls[0]++);
+        game.startNextDay();
+        assertEquals(0, calls[0]);
+        tick(60);
+        int afterDayEnd = calls[0];
+        game.startNextDay();
+        assertEquals(afterDayEnd + 1, calls[0]);
+    }
+
+    @Test
+    public void winningDaySevenDoesNotPause() {
+        tickAndServe(7 * 60);
+        assertEquals(GameState.Status.WON, game.getStatus());
+        assertFalse(game.isBetweenDays());
+    }
+
+    @Test
+    public void newGameIsNotBetweenDays() {
+        assertFalse(game.isBetweenDays());
+    }
+
+    // ---- random arrival gaps ----
+
+    /** Ticks the first day, serving at once, and returns each arrival second. */
+    private List<Integer> arrivalSecondsOnDayOne() {
+        List<Integer> seconds = new java.util.ArrayList<>();
+        for (int t = 1; t <= GameState.SECONDS_PER_DAY; t++) {
+            game.tick();
+            if (game.getQueueSize() > 0) {
+                seconds.add(t);
+                serveFront();
+            }
+        }
+        return seconds;
+    }
+
+    private static List<Integer> gapsBetween(List<Integer> seconds) {
+        List<Integer> gaps = new java.util.ArrayList<>();
+        int previous = 0;
+        for (int s : seconds) {
+            gaps.add(s - previous);
+            previous = s;
+        }
+        return gaps;
+    }
+
+    @Test
+    public void jitteredGapsVaryButStayNearTheDaysInterval() {
+        game = new GameState(new Random(7));
+        List<Integer> gaps = gapsBetween(arrivalSecondsOnDayOne());
+        assertTrue(gaps.size() >= 5);
+        for (int gap : gaps) {
+            assertTrue(gap >= 8 - GameState.ARRIVAL_JITTER_SECONDS
+                && gap <= 8 + GameState.ARRIVAL_JITTER_SECONDS, "gap " + gap);
+        }
+        assertTrue(new java.util.HashSet<>(gaps).size() > 1,
+            "gaps should not all be equal: " + gaps);
+    }
+
+    @Test
+    public void gapsNeverDropBelowTheAbsoluteMinimum() {
+        game = new GameState(new Random(3), 10);
+        for (int gap : gapsBetween(arrivalSecondsOnDayOne())) {
+            assertTrue(gap >= GameState.MIN_ARRIVAL_GAP_SECONDS, "gap " + gap);
+        }
+    }
+
+    @Test
+    public void sameSeedGivesSameJitteredArrivals() {
+        game = new GameState(new Random(11));
+        List<Integer> first = arrivalSecondsOnDayOne();
+        game = new GameState(new Random(11));
+        assertEquals(first, arrivalSecondsOnDayOne());
+    }
+
+    @Test
+    public void negativeJitterIsRejected() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new GameState(new Random(1), -1));
+        assertThrows(IllegalArgumentException.class,
+            () -> new GameState(null, 0));
     }
 
     // ---- completeFrontOrder ----
@@ -339,7 +454,7 @@ public class GameStateTest {
 
     @Test
     public void ingredientOrderDoesNotMatter() {
-        GameState custom = new GameState(new Random(1));
+        GameState custom = new GameState(new Random(1), 0);
         tickOn(custom, 8);
         List<String> recipe = custom.getWaitingCustomers()[0].getOrder()
             .getIngredients();

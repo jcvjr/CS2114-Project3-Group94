@@ -46,6 +46,13 @@ public interface GameInfo {
     String getMessage();
 
     /**
+     * @return true while the game is paused after a day ends, waiting to start
+     *         the next one. {@link #getDay()} is then the upcoming day, so the
+     *         day just finished is {@code getDay() - 1}.
+     */
+    boolean isBetweenDays();
+
+    /**
      * @return seconds left in the wrong-order penalty, during which the player
      *         cannot act; 0 when there is no penalty
      */

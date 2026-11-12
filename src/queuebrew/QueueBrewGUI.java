@@ -10,10 +10,12 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 
 /**
  * Thin view: draws what {@link GameInfo} reports and passes the player's clicks
@@ -23,6 +25,8 @@ import javax.swing.SwingConstants;
 public class QueueBrewGUI implements GameListener {
 
     private final GameInfo info;
+    private final QueueBrew controller;
+    private boolean dayDialogOpen;
     private final JFrame frame;
     private final JLabel dayLabel;
     private final JLabel timeLabel;
@@ -45,6 +49,7 @@ public class QueueBrewGUI implements GameListener {
      */
     public QueueBrewGUI(GameInfo info, QueueBrew controller) {
         this.info = info;
+        this.controller = controller;
         frame = new JFrame("Queue Brew");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout(8, 8));
@@ -142,11 +147,31 @@ public class QueueBrewGUI implements GameListener {
         messageLabel.setText(text.isEmpty() ? " " : text);
 
         boolean playing = info.getStatus() == GameState.Status.PLAYING
-            && info.getPenaltySecondsLeft() == 0;
+            && !info.isBetweenDays() && info.getPenaltySecondsLeft() == 0;
         completeButton.setEnabled(playing);
         clearButton.setEnabled(playing);
         for (JButton button : ingredientButtons) {
             button.setEnabled(playing);
         }
+
+        if (info.isBetweenDays() && !dayDialogOpen) {
+            SwingUtilities.invokeLater(this::showDayCompleteDialog);
+        }
+    }
+
+    /** Shows the end-of-day popup, then tells the controller to go on. */
+    private void showDayCompleteDialog() {
+        if (dayDialogOpen || !info.isBetweenDays()) {
+            return;
+        }
+        dayDialogOpen = true;
+        int finished = info.getDay() - 1;
+        JOptionPane.showMessageDialog(frame,
+            "Congratulations! You completed day " + finished + ".\n"
+                + "Lives left: " + info.getLives() + "\n\n"
+                + "Click OK to start day " + info.getDay() + ".",
+            "Day " + finished + " complete", JOptionPane.INFORMATION_MESSAGE);
+        dayDialogOpen = false;
+        controller.onNextDayClicked();
     }
 }

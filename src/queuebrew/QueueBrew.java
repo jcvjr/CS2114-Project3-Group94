@@ -43,6 +43,13 @@ public class QueueBrew {
     }
 
     /**
+     * Called by the view when the player dismisses the end-of-day message.
+     */
+    public void onNextDayClicked() {
+        game.startNextDay();
+    }
+
+    /**
      * Called by the view when the player clicks Clear Cup.
      */
     public void onClearCupClicked() {
