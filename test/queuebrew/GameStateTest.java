@@ -380,6 +380,55 @@ public class GameStateTest {
     }
 
     @Test
+    public void arrivalsGetFasterEachDayUpToTheFinalDay() {
+        int previous = 0;
+        int dayOne = 0;
+        int dayServen = 0;
+        for (int day = 1; day <= GameState.TOTAL_DAYS; day++) {
+            if (game.isBetweenDays()) {
+                game.startNextDay();
+            }
+            int arrivals = 0;
+            for (int t = 0; t < GameState.SECONDS_PER_DAY; t++) {
+                game.tick();
+                if (game.getQueueSize() > 0) {
+                    arrivals++;
+                    serveFront();
+                }
+            }
+            assertTrue(arrivals >= previous, "day " + day + ": " + arrivals);
+            previous = arrivals;
+            if (day == 1) {
+                dayOne = arrivals;
+            }
+            dayServen = arrivals;
+        }
+        assertTrue(dayServen >= 2 * dayOne, dayOne + " vs " + dayServen);
+    }
+
+    @Test
+    public void finalDayGapsAreTwoToFourSeconds() {
+        game = new GameState(new Random(5));
+        tickAndServe(6 * GameState.SECONDS_PER_DAY);
+        game.startNextDay();
+        assertEquals(7, game.getDay());
+        List<Integer> seconds = new java.util.ArrayList<>();
+        for (int t = 1; t <= GameState.SECONDS_PER_DAY; t++) {
+            game.tick();
+            if (game.getQueueSize() > 0) {
+                seconds.add(t);
+                serveFront();
+            }
+        }
+        List<Integer> gaps = gapsBetween(seconds);
+        assertTrue(gaps.size() >= 12, "arrivals: " + gaps);
+        for (int gap : gaps) {
+            assertTrue(gap >= 2 && gap <= 4, "gap " + gap + " in " + gaps);
+        }
+        assertTrue(new java.util.HashSet<>(gaps).size() > 1, "no variety");
+    }
+
+    @Test
     public void sameSeedGivesSameJitteredArrivals() {
         game = new GameState(new Random(11));
         List<Integer> first = arrivalSecondsOnDayOne();

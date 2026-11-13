@@ -26,11 +26,16 @@ public class GameState implements GameInfo {
     public static final int QUEUE_CAPACITY = 6;
     /** Seconds between arrivals on day 1. */
     public static final int START_ARRIVAL_INTERVAL_SECONDS = 8;
-    /** How much the arrival interval shrinks each day after day 1. */
-    public static final int ARRIVAL_INTERVAL_DECREASE_PER_DAY = 1;
-    /** The shortest a day's average arrival interval gets. */
-    public static final int MIN_ARRIVAL_INTERVAL_SECONDS = 5;
-    /** Each gap between arrivals varies by up to this many seconds. */
+    /**
+     * Average seconds between arrivals on the final day. The interval shrinks
+     * evenly from the day 1 value to this one.
+     */
+    public static final int FINAL_DAY_ARRIVAL_INTERVAL_SECONDS = 3;
+    /**
+     * Most a gap between arrivals can vary from the day's interval, in seconds.
+     * Later days vary less: about a third of the interval, at least 1, so the
+     * final day's gaps are 2 to 4 seconds.
+     */
     public static final int ARRIVAL_JITTER_SECONDS = 2;
     /** No customer arrives during the last this-many seconds of a day. */
     public static final int CLOSING_SECONDS_WITHOUT_ARRIVALS = 3;
@@ -299,18 +304,22 @@ public class GameState implements GameInfo {
         notifyListeners();
     }
 
+    /** Average gap for a day: 8, 7, 6, 5, 5, 4, 3 over the seven days. */
     private static int arrivalIntervalForDay(int day) {
-        return Math.max(MIN_ARRIVAL_INTERVAL_SECONDS,
-            START_ARRIVAL_INTERVAL_SECONDS
-                - ARRIVAL_INTERVAL_DECREASE_PER_DAY * (day - 1));
+        int drop = START_ARRIVAL_INTERVAL_SECONDS
+            - FINAL_DAY_ARRIVAL_INTERVAL_SECONDS;
+        return START_ARRIVAL_INTERVAL_SECONDS
+            - Math.round((float) drop * (day - 1) / (TOTAL_DAYS - 1));
     }
 
     private int nextArrivalInterval(int forDay) {
         int base = arrivalIntervalForDay(forDay);
+        // later, faster days vary less, so day 7 (base 3) gives 2 to 4 seconds
+        int jitter = Math.min(arrivalJitter, Math.max(1, base / 3));
         if (arrivalJitter == 0) {
             return base;
         }
-        int offset = random.nextInt(2 * arrivalJitter + 1) - arrivalJitter;
+        int offset = random.nextInt(2 * jitter + 1) - jitter;
         return Math.max(MIN_ARRIVAL_GAP_SECONDS, base + offset);
     }
 
