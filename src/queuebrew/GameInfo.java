@@ -46,6 +46,12 @@ public interface GameInfo {
     String getMessage();
 
     /**
+     * @return seconds before the customer at the front of the line walks out,
+     *         or 0 if nobody is in line
+     */
+    int getFrontPatienceLeft();
+
+    /**
      * @return true while the game is paused after a day ends, waiting to start
      *         the next one. {@link #getDay()} is then the upcoming day, so the
      *         day just finished is {@code getDay() - 1}.

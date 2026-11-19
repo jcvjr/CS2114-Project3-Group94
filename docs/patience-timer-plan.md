@@ -1,6 +1,6 @@
 # Patience timer: front customer walks out (Prototype 2 plan)
 
-Status: **planned, not implemented.** A teammate is implementing it as part of Prototype 2 (Deliverable 4). Nothing in `src/` mentions patience yet, and the game behaves as at commit `050ea57`.
+Status: **implemented in Prototype 2** (change-log row 23). It touched `GameState`, `GameInfo`, `QueueBrewGUI` and the tests, as predicted below. The one addition to the plan is a `GameState(Random, int, int patienceSeconds)` constructor so tests can switch walk-outs off.
 
 ## Context
 The scope's stretch goal was a patience timer, but it was blocked on "how do we do this and keep FIFO?" (README unknowns table; change-log row 3 deferred `Customer.secondsWaiting`). The team's answer: only the customer **at the front of the line** can run out of patience and walk out, so nobody is ever removed from the middle and FIFO holds.

@@ -59,6 +59,8 @@ public class GameState implements GameInfo {
         "Wrong order! The cup was dumped - try again.";
     /** Seconds the player is locked out after serving a wrong order. */
     public static final int WRONG_ORDER_PENALTY_SECONDS = 3;
+    /** Seconds the customer at the front waits before walking out. */
+    public static final int PATIENCE_SECONDS = 15;
     /** Message when the player adds to a full cup. */
     public static final String CUP_FULL_MESSAGE = "The cup is full.";
 
@@ -75,6 +77,8 @@ public class GameState implements GameInfo {
     private int secondsSinceArrival;
     private int penaltySecondsLeft;
     private final int arrivalJitter;
+    private final int patienceSeconds;
+    private int frontPatienceLeft;
     private int currentArrivalInterval;
     private boolean betweenDays;
     private Status status;
@@ -113,6 +117,32 @@ public class GameState implements GameInfo {
      *             if random is null or arrivalJitterSeconds is negative
      */
     public GameState(Random random, int arrivalJitterSeconds) {
+        this(random, arrivalJitterSeconds, PATIENCE_SECONDS);
+    }
+
+    /**
+     * Creates a new game with a chosen arrival jitter and front-customer
+     * patience. Tests that are not about patience pass a very large value so
+     * nobody walks out.
+     *
+     * @param random
+     *            the source of random names, drinks and arrival gaps
+     * @param arrivalJitterSeconds
+     *            each gap is the day's interval plus or minus up to this many
+     *            seconds
+     * @param patienceSeconds
+     *            how long the customer at the front waits before walking out
+     * @throws IllegalArgumentException
+     *             if random is null, arrivalJitterSeconds is negative, or
+     *             patienceSeconds is not positive
+     */
+    public GameState(Random random, int arrivalJitterSeconds,
+        int patienceSeconds) {
+        if (patienceSeconds <= 0) {
+            throw new IllegalArgumentException("patience must be positive");
+        }
+        this.patienceSeconds = patienceSeconds;
+        frontPatienceLeft = patienceSeconds;
         if (random == null) {
             throw new IllegalArgumentException("random must not be null");
         }
@@ -159,6 +189,18 @@ public class GameState implements GameInfo {
         message = "";
         if (penaltySecondsLeft > 0) {
             penaltySecondsLeft--;
+        }
+        // Only the customer at the front is impatient, so nobody is ever
+        // removed from the middle of the line and FIFO order is kept.
+        if (!line.isEmpty()) {
+            frontPatienceLeft--;
+            if (frontPatienceLeft <= 0) {
+                frontWalksOut();
+                if (status != Status.PLAYING) {
+                    notifyListeners();
+                    return;
+                }
+            }
         }
         secondsLeftInDay--;
         secondsSinceArrival++;
@@ -245,6 +287,7 @@ public class GameState implements GameInfo {
         else {
             line.dequeue();
             cup.clear();
+            frontPatienceLeft = patienceSeconds;
             message = "";
             served = true;
         }
@@ -255,12 +298,30 @@ public class GameState implements GameInfo {
     private void addArrival() {
         Customer arriving = new Customer(NAMES[random.nextInt(NAMES.length)],
             Menu.randomOrder(random));
-        if (!line.enqueue(arriving)) {
+        boolean wasEmpty = line.isEmpty();
+        if (line.enqueue(arriving)) {
+            if (wasEmpty) {
+                frontPatienceLeft = patienceSeconds;
+            }
+        }
+        else {
             lives--;
             message = TURNED_AWAY_MESSAGE;
             if (lives <= 0) {
                 status = Status.LOST;
             }
+        }
+    }
+
+    /** The front customer runs out of patience: they leave and cost a life. */
+    private void frontWalksOut() {
+        Customer leaving = line.dequeue();
+        cup.clear();
+        frontPatienceLeft = patienceSeconds;
+        lives--;
+        message = leaving.getName() + " got tired of waiting and left: -1 life.";
+        if (lives <= 0) {
+            status = Status.LOST;
         }
     }
 
@@ -287,6 +348,7 @@ public class GameState implements GameInfo {
             // closing time: everyone goes home and the counter is wiped
             line.clear();
             cup.clear();
+            frontPatienceLeft = patienceSeconds;
             penaltySecondsLeft = 0;
             betweenDays = true;
         }
@@ -367,6 +429,11 @@ public class GameState implements GameInfo {
     @Override
     public String getMessage() {
         return message;
+    }
+
+    @Override
+    public int getFrontPatienceLeft() {
+        return line.isEmpty() ? 0 : frontPatienceLeft;
     }
 
     @Override

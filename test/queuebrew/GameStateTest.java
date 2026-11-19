@@ -17,11 +17,16 @@ import org.junit.jupiter.api.Test;
  */
 public class GameStateTest {
 
+    /** Patience so long that nobody walks out during a test. */
+    private static final int NO_PATIENCE = 100000;
+
     private GameState game;
 
     @BeforeEach
     public void setUp() {
-        game = new GameState(new Random(1), 0); // no jitter: exact timing
+        // no arrival jitter (exact timing) and patience off, so only the patience
+        // tests below see customers walk out
+        game = new GameState(new Random(1), 0, NO_PATIENCE);
     }
 
     /** One second, first ending any pause between days like the view would. */
@@ -104,7 +109,7 @@ public class GameStateTest {
 
     @Test
     public void sameSeedGivesSameArrivals() {
-        GameState other = new GameState(new Random(1), 0);
+        GameState other = new GameState(new Random(1), 0, NO_PATIENCE);
         tick(24);
         for (int i = 0; i < 24; i++) {
             other.tick();
@@ -197,6 +202,136 @@ public class GameStateTest {
         assertEquals(seconds, game.getSecondsLeftInDay());
         assertEquals(day, game.getDay());
         assertEquals(0, calls[0]);
+    }
+
+    // ---- patience: the front customer walks out ----
+
+    /** A game with exact arrival timing and the real 15 s patience. */
+    private GameState patientGame() {
+        return new GameState(new Random(1), 0);
+    }
+
+    @Test
+    public void frontCustomerWalksOutAfterFifteenSecondsAndCostsALife() {
+        game = patientGame();
+        tick(8); // first customer arrives
+        assertEquals(1, game.getQueueSize());
+        assertEquals(GameState.PATIENCE_SECONDS, game.getFrontPatienceLeft());
+        tick(14);
+        assertEquals(1, game.getFrontPatienceLeft());
+        assertEquals(3, game.getLives());
+        assertEquals(2, game.getQueueSize()); // second customer arrived at 16 s
+        tick(1);
+        assertEquals(2, game.getLives());
+        assertEquals(1, game.getQueueSize());
+        assertTrue(game.getMessage().contains("got tired of waiting"),
+            game.getMessage());
+    }
+
+    @Test
+    public void onlyTheFrontCustomerLeavesAndTheNextOneGetsAFreshClock() {
+        game = patientGame();
+        tick(16); // customers arrive at 8 s and 16 s
+        Customer second = game.getWaitingCustomers()[1];
+        tick(7); // first customer walks out at 23 s
+        assertEquals(1, game.getQueueSize());
+        assertEquals(second, game.getWaitingCustomers()[0]);
+        assertEquals(GameState.PATIENCE_SECONDS, game.getFrontPatienceLeft());
+        assertEquals(2, game.getLives());
+    }
+
+    @Test
+    public void servingTheFrontResetsTheClockForTheNextCustomer() {
+        game = patientGame();
+        tick(18); // arrivals at 8 s and 16 s; front has waited 10 s
+        assertEquals(5, game.getFrontPatienceLeft());
+        assertTrue(serveFront());
+        assertEquals(GameState.PATIENCE_SECONDS, game.getFrontPatienceLeft());
+    }
+
+    @Test
+    public void clockStartsWhenTheFirstCustomerArrivesAndNotBefore() {
+        game = patientGame();
+        assertEquals(0, game.getFrontPatienceLeft());
+        tick(7);
+        assertEquals(0, game.getFrontPatienceLeft());
+        assertEquals(3, game.getLives());
+        tick(1);
+        assertEquals(GameState.PATIENCE_SECONDS, game.getFrontPatienceLeft());
+    }
+
+    @Test
+    public void emptyLineAfterServingHasNoClock() {
+        game = patientGame();
+        tick(8);
+        assertTrue(serveFront());
+        assertEquals(0, game.getFrontPatienceLeft());
+        tick(5);
+        assertEquals(3, game.getLives());
+    }
+
+    @Test
+    public void wrongOrderLockoutDoesNotFreezeTheClock() {
+        game = patientGame();
+        tick(8);
+        game.addIngredient("Foam");
+        game.addIngredient("Foam");
+        game.addIngredient("Foam");
+        game.completeFrontOrder(); // wrong cup: 3 s lockout
+        tick(3);
+        assertEquals(GameState.PATIENCE_SECONDS - 3,
+            game.getFrontPatienceLeft());
+    }
+
+    @Test
+    public void walkOutDumpsTheCup() {
+        game = patientGame();
+        tick(8);
+        game.addIngredient("Milk");
+        tick(15);
+        assertTrue(game.getCup().isEmpty());
+    }
+
+    @Test
+    public void walkOutOfTheLastLifeLosesTheGame() {
+        game = patientGame();
+        tick(53); // walk-outs at 23 s, 38 s and 53 s
+        assertEquals(0, game.getLives());
+        assertEquals(GameState.Status.LOST, game.getStatus());
+        assertTrue(game.getMessage().contains("got tired of waiting"),
+            game.getMessage());
+    }
+
+    @Test
+    public void clockStopsWhenTheGameIsOver() {
+        game = patientGame();
+        tick(53);
+        int left = game.getFrontPatienceLeft();
+        tick(10);
+        assertEquals(left, game.getFrontPatienceLeft());
+        assertEquals(0, game.getLives());
+    }
+
+    @Test
+    public void clockIsFrozenAndResetBetweenDays() {
+        game = patientGame();
+        tickAndServe(40);
+        tick(20); // customers arrive at 48 s and 56 s and are left waiting
+        assertTrue(game.isBetweenDays());
+        assertEquals(0, game.getQueueSize());
+        assertEquals(0, game.getFrontPatienceLeft());
+        game.tick(); // ignored while paused
+        assertEquals(0, game.getFrontPatienceLeft());
+    }
+
+    @Test
+    public void patienceRejectsNonPositiveValues() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new GameState(new Random(1), 0, 0));
+        assertThrows(IllegalArgumentException.class,
+            () -> new GameState(new Random(1), 0, -5));
+        assertThrows(IllegalArgumentException.class,
+            () -> new GameState(null, 0, 15));
     }
 
     // ---- between days ----

@@ -34,6 +34,7 @@ public class QueueBrewGUI implements GameListener {
     private final JLabel queueCountLabel;
     private final JLabel messageLabel;
     private final JLabel cupLabel;
+    private final JLabel patienceLabel;
     private final DefaultListModel<String> queueModel;
     private final List<JButton> ingredientButtons;
     private final JButton clearButton;
@@ -82,6 +83,7 @@ public class QueueBrewGUI implements GameListener {
             ingredients.add(button);
         }
         cupLabel = new JLabel(" ", SwingConstants.CENTER);
+        patienceLabel = new JLabel(" ", SwingConstants.CENTER);
         messageLabel = new JLabel(" ", SwingConstants.CENTER);
         clearButton = new JButton("Clear Cup");
         clearButton.addActionListener(e -> controller.onClearCupClicked());
@@ -91,14 +93,15 @@ public class QueueBrewGUI implements GameListener {
         actions.add(clearButton);
         actions.add(completeButton);
 
-        JPanel bottom = new JPanel(new GridLayout(4, 1));
+        JPanel bottom = new JPanel(new GridLayout(5, 1));
+        bottom.add(patienceLabel);
         bottom.add(messageLabel);
         bottom.add(cupLabel);
         bottom.add(ingredients);
         bottom.add(actions);
         frame.add(bottom, BorderLayout.SOUTH);
 
-        frame.setSize(640, 480);
+        frame.setSize(640, 520);
         gameChanged();
     }
 
@@ -130,6 +133,10 @@ public class QueueBrewGUI implements GameListener {
         List<String> cup = info.getCup();
         cupLabel.setText(cup.isEmpty() ? "Cup: (empty)"
             : "Cup: " + String.join(" + ", cup));
+
+        patienceLabel.setText(info.getFrontPatienceLeft() > 0
+            ? "Front customer will leave in " + info.getFrontPatienceLeft() + "s"
+            : " ");
 
         String text = info.getMessage();
         if (info.getStatus() == GameState.Status.WON) {
