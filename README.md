@@ -2,9 +2,17 @@
 
 A coffee-shop game. Customers arrive on their own and join a fixed-size, array-based FIFO line. The player makes the front customer's drink by clicking its ingredients into a cup (see the recipe card in the window), then clicks **Complete Order**. A wrong cup is dumped, the customer keeps waiting, and the player is locked out for 3 seconds. If a customer arrives while the line is full, they are turned away and the player loses a life (3 lives). Survive 7 days (60 seconds each) with at least one life to win.
 
-Status: **Prototype 2 (Deliverable 4) is in progress.** Deliverable 3 (Prototype 1) is described by the older sections below, which are kept as history. The patience-timer plan for Prototype 2 is in [docs/patience-timer-plan.md](docs/patience-timer-plan.md).
+## Prototype timeline
 
-Deliverable 3: first prototype. The model (`Line`, `Customer`, `Order`, `TimeUtil`, `GameState`) is complete and tested without any GUI. The view (`QueueBrewGUI`) and controller (`QueueBrew`) are a thin but playable slice.
+| | Prototype 1 (Deliverable 3) | Prototype 2 (Deliverable 4) |
+|---|---|---|
+| What it is | The first working slice. The model stands alone, with a thin view. One **Complete Order** button removes the front customer. | The same game made deeper and harder: making the drink, a wrong-order lockout, random and faster arrivals, a day-end popup, and lives lost for customers left waiting. The patience timer is the planned change feature. |
+| Code | Commit `7b1a2e5`, exactly as handed in for Deliverable 3 | Every commit after it (`7519ee0` onward) up to the current code |
+| Tests | 38 | 81, and growing |
+| Change-log rows | 1 to 8 | 9 onward |
+| README sections | "Prototype 1 Reflection" and "Prototype 1 Next Steps" (kept exactly as submitted) | "Reflection" and "Next Steps" |
+
+**The transition:** Prototype 1 is frozen at the Deliverable 3 hand-in. Prototype 2 starts with the next commit and carries on from there. [Changes between prototypes](#changes-between-prototypes) lists exactly what moved, and the change-log tables give the reason for each change. The patience-timer plan for Prototype 2 is in [docs/patience-timer-plan.md](docs/patience-timer-plan.md).
 
 ## Layout
 
@@ -40,9 +48,11 @@ java -cp bin queuebrew.QueueBrew
 
 ## Changes from Spec / Scope to Prototype
 
-**Prototype 1 changes are rows 1 to 22 below** (everything up to commit `050ea57`). **Every change from here on goes in the "Prototype 2 changes" table that follows it.**
+**Prototype 1 changes are rows 1 to 8** (in the Deliverable 3 hand-in, commit `7b1a2e5`). **Prototype 2 changes are rows 9 onward**, in the second table. Every new change goes at the bottom of the Prototype 2 table.
 
 This is a running log. Every time the prototype departs from the Scope or the Specification, add a row (newest last) and say why. "Scope" is the Group 94 Scope document; "Spec" is the QueueBrew Specification.
+
+### Prototype 1 changes (in the Deliverable 3 hand-in)
 
 | # | Area | Scope / Spec said | Prototype does | Why |
 |---|---|---|---|---|
@@ -54,6 +64,12 @@ This is a running log. Every time the prototype departs from the Scope or the Sp
 | 6 | `arrivalIntervalForDay` | Spec: private, and "can be static". | `private static`, tested through behavior (8 s on day 1, 7 s on day 2). | Spec had it private. Behavior tests are enough. |
 | 7 | Test plan | One normal and one bad-input test per public method. | Tests are grouped by behavior (81 now). Trivial getters are covered inside scenario tests. Added tests the spec did not list (see rows below). | Fewer, more meaningful tests. Every spec'd case is still covered. |
 | 8 | Console driver | Not in the spec. | `ModelDriver` plays a whole game with no window. | The "tiny driver" the Deliverable 3 rubric asks for. |
+### Prototype 2 changes (after the Deliverable 3 hand-in)
+
+Same columns. Rows 9 to 22 were made in commits `7519ee0` to `050ea57`, and rows 23 onward from commit `e429481`. Add a row for every new change.
+
+| # | Area | Scope / Spec said | Prototype 2 does | Why |
+|---|---|---|---|---|
 | 9 | **Making the drink** (new) | Scope MVP: one "Complete Order" button that removes the front order. Scope "What we don't know": "How do we complete the order? Choosing buttons that are the components of the coffee?" Spec: `Order` holds only a drink name. | The player adds ingredients to a cup with buttons, then clicks Complete Order. It only serves the front customer if the cup matches that drink's recipe. | Answers that Scope unknown, and makes the game more than clicking one button. |
 | 10 | `Menu` class (new) | Not in the spec. | `Menu` holds the ingredient list, each drink's recipe, the recipe card text and random order generation. | Recipes had to live somewhere in the model. It replaces the `DRINKS` array inside `GameState`. |
 | 11 | `Order` (new) | `Order(String drink)` and `getDrink()` only. | Adds `getIngredients()` and `matches(cup)`, plus a second constructor `Order(drink, ingredients)`. `Order(drink)` now looks the recipe up in `Menu` and rejects drinks not on the menu. Matching ignores order and checks counts. | Needed to check a cup. |
@@ -68,19 +84,12 @@ This is a running log. Every time the prototype departs from the Scope or the Sp
 | 20 | **Pause and popup between days** (new) | Scope/Spec: day 1 ends and day 2 starts immediately, with no message. | When a day ends (days 1 to 6), the model enters a paused "between days" state: `tick()` and all cup actions do nothing until `startNextDay()` is called. The view sees `GameInfo.isBetweenDays()` and shows a popup, "Congratulations! You completed day X", with lives left. Clicking OK calls the controller's `onNextDayClicked()`, which calls `startNextDay()`. Day 7 still goes straight to the win message. (What happens to the line is row 21.) | Player request. The pause is a model rule (not just a popup) so the clock does not keep running behind a dialog, and so it can be tested without a window. |
 | 21 | **Line clears at the end of each day** (new) | Spec: nothing said about customers still in line when a day ends, so they carried over into the next day. | At the end of days 1 to 6 the line, the cup and any wrong-order penalty are all cleared. The next day starts with an empty line. (Whether leftover customers cost lives is row 22.) New method `Line.clear()` (the spec's `Line` had none), and the popup says the line clears. | Playtest feedback: customers carrying over made later days snowball. A fresh line each day makes each day its own round. |
 | 22 | **Lives lost for customers left in line at closing** (new) | Spec: lives are lost only when a customer arrives to a full line. | When any day ends (including day 7), the player loses one life per customer still in line (never below 0). If that reaches 0 lives the game is LOST, even on day 7. The model writes the message ("2 customers were still in line at closing: -2 lives."), and the end-of-day popup shows it. Also, no customer arrives in the last 3 seconds of a day (`CLOSING_SECONDS_WITHOUT_ARRIVALS`; `tick()` skips arrivals once 2 or fewer seconds are left). | Player request: otherwise the line clearing (row 21) let the player ignore the queue at the end of a day. The quiet period at closing is our addition (first one second, then widened to 3 seconds at the player's request). Without it, days 3, 5, 6 and 7 (gaps of 6 s or 5 s that divide 60) would always drop a customer on the closing second that nobody could serve. Not in the scope or spec. 7 new tests. |
-
-### Prototype 2 changes (from here on)
-
-Same columns as above. Add a row for every change made after `050ea57`. Rows are numbered from 23 so they continue the list above.
-
-| # | Area | Scope / Spec said | Prototype 2 does | Why |
-|---|---|---|---|---|
 | 23 | **Patience timer** (planned, not built yet) | Scope stretch goal: a timer per order, and customers who wait past a limit walk out, "while maintaining FIFO". | Plan: only the front customer's patience counts down, and when it runs out they leave and cost a life. Full plan, predicted class changes and tests: [docs/patience-timer-plan.md](docs/patience-timer-plan.md). A teammate is implementing it. | The scope left "how do we keep FIFO?" open. Timing only the front customer means nobody is removed from the middle. Replaces the D3 plan's change feature (preparation times), see the Prototype 2 reflection. |
 | 24 | **Harder arrivals toward the final day** (Prototype 2) | Rows 15 and 19: average gap 8 s on day 1, down 1 s per day to a floor of 5 s, with each gap varying by up to 2 s. The game was too easy. | The average gap now shrinks evenly from 8 s on day 1 to `FINAL_DAY_ARRIVAL_INTERVAL_SECONDS` (3 s) on day 7: 8, 7, 6, 5, 5, 4, 3 s by day. The random variation shrinks on later days (about a third of the interval, at least 1 s), so day 7 gaps are **2 to 4 seconds**. Constants `ARRIVAL_INTERVAL_DECREASE_PER_DAY` and `MIN_ARRIVAL_INTERVAL_SECONDS` are removed. `ModelDriver` now takes a clicks-per-second argument (default 3). | Playtest feedback: the game was way too easy. Rows 15 and 19 are superseded for days 4 to 7 (days 1 to 3 are unchanged). A perfect robot at 1 click per second now loses on day 6 and one at 2 or more wins, so it is winnable but tight. Not yet playtested by a person. 2 new tests. |
 
 ## Changes between prototypes
 
-What is different between the **Deliverable 3 hand-in** (commit `7b1a2e5`, "Prototype 1 as handed in") and the code now. The detailed reasons for each change are in the change-log tables above (row numbers in the last column). *[TEAM: the change-log's "Prototype 1" rows 1 to 22 run up to commit `050ea57`, so rows 9 to 22 were made after the D3 hand-in. This table lists everything by commit so it reads correctly either way. Decide which prototype you count those rows under in the Deliverable 4 reflection.]*
+What is different between the **Deliverable 3 hand-in** (commit `7b1a2e5`) and the code now. The detailed reasons for each change are in the change-log tables above (row numbers in the last column). Prototype 1 is the first row below. Prototype 2 is every row after it.
 
 ### By commit
 
@@ -111,17 +120,22 @@ What is different between the **Deliverable 3 hand-in** (commit `7b1a2e5`, "Prot
 - `Line` is still the only queue, with the same `enqueue`, `dequeue`, `peek`, `isEmpty`, `getSize`, `getCapacity` and `toArray` behaviour, so FIFO order never changed.
 - The model still has no Swing imports. Everything above was tested without a window.
 
-## Prototype 1 Reflection (Deliverable 3)
+## Prototype 1 Reflection (Deliverable 3, as handed in)
+
+*This is the reflection exactly as submitted for Deliverable 3 (commit `7b1a2e5`). It describes Prototype 1 only. Everything that changed afterwards is in the Prototype 2 sections.*
 
 ### What changed from our specification?
 
-The classes and method signatures in the spec were built as written, and then extended. See the **Changes from Spec / Scope to Prototype** table above for the full list with reasons. The short version:
+The classes and method signatures in the spec were built as written. The differences, and why:
 
-- The spec contradicted itself on the arrival interval (5 s in prose, 8 s in the table, formula and tests). We followed the table.
-- `Customer.secondsWaiting` was dropped until a feature needs it, and validation became stricter (blank text is rejected).
-- The biggest change is the **cup**: the Scope listed "how do we complete the order?" as an unknown, and we answered it. Orders now have recipes (`Menu`, `Order`), `GameState` tracks a cup, and Complete Order checks it. This changed `completeFrontOrder()`, `GameInfo`, the controller and the view.
-- Tests are grouped by behavior instead of one normal and one bad-input test per method, and `ModelDriver` was added.
-- **Validation lives where the spec said.** Rules live in the model (`Line`, `GameState`, `Order`, `Customer`, `Menu`). The view only displays `getMessage()`. The controller does not validate anything. The cup is checked in `GameState`, not in the GUI.
+- **Arrival timing: the spec contradicted itself.** Section 4 said "one new customer every 5 seconds" in prose, but its constants table, the `arrivalIntervalForDay` formula and the day-2 test all assume 8 seconds on day 1 (down 1 second per day, minimum 3). The test plan also said "tick 5 times, expect one customer". We followed the table and formula (8 s), so that test became "7 ticks: nobody; 8th tick: one customer" (`firstCustomerArrivesAfterEightSeconds`).
+- **`Customer.secondsWaiting` was not built.** The spec listed the field, but nothing reads it until the patience-timer stretch goal, and it had no getter or setter. We will add it with that feature, if we attempt it.
+- **Stricter validation.** `Order` and `Customer` reject blank (whitespace-only) text as well as null and empty, using `isBlank()`. The spec's test table itself hints at this ("whitespace-only text if such input is rejected").
+- **Message handling filled in a gap.** The spec never said when a message goes away. `tick()` clears the message at the start of each tick, and a successful `completeFrontOrder()` clears it. The empty-line and turned-away messages are public constants in `GameState` so tests and the view do not retype them.
+- **`GameState.arrivalIntervalForDay` is `private static`.** We test it through behavior (day 1 arrives at 8 s, day 2 at 7 s) instead of calling it directly.
+- **Tests are grouped differently.** The spec had one normal and one bad-input test per method. We wrote 38 tests grouped by behavior. Trivial getters are covered inside the scenario tests (for example `getQueueCapacity` inside `queueSizeNeverExceedsCapacity`). We added a few the spec did not list: FIFO order after dequeue-then-enqueue on a full line, message clearing, and same-seed repeatability.
+- **Added `ModelDriver`**, a console driver that plays a complete game with no window. It is not in the spec. It is the "tiny driver" the rubric asks for.
+- **Validation lives where the spec said.** Rules live in the model (`Line`, `GameState`, the `Order`/`Customer` constructors). The view only displays `getMessage()`. The controller does not validate anything.
 
 ### Did the model really stand alone?
 
@@ -139,12 +153,12 @@ Yes. Nothing in the five model classes imports Swing or `java.awt`, and `GameSta
 | Implementing automatic arrivals and the day countdown | **Answered:** the controller's 1-second `Timer` calls `GameState.tick()`. The model counts seconds itself, so no real clock is needed to test it. |
 | How to test this kind of game | **Answered for the model:** inject a seeded `Random`, call `tick()` in a loop, assert on state. No GUI is needed. **Open for the view:** we have no automated GUI tests. |
 | Queue capacity | **Provisional:** 6. Not yet playtested by a person. |
-| Arrival rate, and whether it should change per day | **Provisional, playtested once (Prototype 2 row 24 makes later days faster, 2 to 4 s on day 7):** the average gap is 8 s on day 1, 1 s shorter each day, minimum 5 s (raised from 3 s because making a drink takes several clicks). Each gap now varies by up to 2 s (change-log row 19). The player found the fixed 5 s interval fine but a bit easy, so randomizing it is the first attempt at more difficulty. More playtesting is needed. |
+| Arrival rate, and whether it should change per day | **Provisional:** 8 s on day 1, 1 s faster each day, minimum 3 s. In the driver, a player who serves every 6 s survives until day 6 and then loses, so days 6 and 7 (3 to 4 s arrivals) may be too hard. Needs playtesting. |
 | Day length / game length for a demo | **Open:** `SECONDS_PER_DAY` is a single constant, so it is easy to change. Not yet decided. |
 | Manual "add order" form | **Dropped:** automatic arrivals plus the seeded driver cover testing, so the form is not needed. |
 | Score | **Open:** win/lose only for now. |
 | Patience timers while keeping FIFO | **Open:** not started. The idea is to check only the front customer, since removing from the middle breaks FIFO. |
-| How to complete an order (coffee-component buttons?) and what a wrong order does | **Answered:** the player clicks ingredient buttons to fill a cup, then Complete Order checks it against the front customer's recipe. A wrong cup is dumped and the customer keeps waiting, with no life lost. The penalty is now a 3-second lockout (see change-log row 18); whether it is the right size is open until playtested. |
+| How to complete an order (coffee-component buttons?) and what a wrong order does | **Open:** the MVP uses one Complete Order button, so a wrong order cannot happen yet. |
 
 ### What doesn't work yet?
 
@@ -154,7 +168,9 @@ Yes. Nothing in the five model classes imports Swing or `java.awt`, and `GameSta
 - The game balance (capacity, arrival speed on days 6 and 7) has not been checked by a human player.
 - No spec'd tests are failing. The only intentional gaps are the GUI tests above.
 
-## Prototype 1 Next Steps (written for Deliverable 4)
+## Prototype 1 Next Steps (written for Deliverable 4, as handed in)
+
+*As submitted for Deliverable 3. The Prototype 2 section further down says what actually changed from this plan.*
 
 ### Finishing the MVP, in order
 
@@ -171,7 +187,7 @@ Prediction of what it will touch:
 
 | Class | Change? | Why |
 |---|---|---|
-| `Order` | **Yes (model)** | Add `getPrepSeconds()`; each drink's prep time would come from `Menu`, so `Menu` changes too. |
+| `Order` | **Yes (model)** | Add `getPrepSeconds()`; a constructor taking prep time (the old one gets a default). |
 | `GameState` | **Yes (model)** | New state: the order being prepared and seconds left. `tick()` counts it down and finishes the order. `completeFrontOrder()` now means "start preparing". It needs rules for clicking while already preparing. |
 | `GameInfo` | **Yes (boundary)** | One new getter for the prep seconds left, so the view can show it. |
 | `QueueBrewGUI` | **Yes (view)** | Display the progress and disable the button while preparing. |
@@ -211,6 +227,19 @@ Roles follow the spec's Division of Work. [TEAM: confirm each owner before submi
 
 ### How did the design absorb the change?
 
+**Features already built in Prototype 2 (before the timer).** Classes touched, from the commit history:
+
+| Feature | Model | Controller | View | Not touched |
+|---|---|---|---|---|
+| Making the drink and wrong-order lockout (rows 9 to 18) | `Order`, `Menu` (new), `GameState`, `GameInfo` | `QueueBrew` (2 new methods) | `QueueBrewGUI` | `Line`, `Customer`, `TimeUtil` |
+| Random arrival gaps, harder arrivals toward day 7 (rows 19, 24) | `GameState` | none | none | everything else |
+| Day-end popup and pause (row 20) | `GameState`, `GameInfo` | `QueueBrew` (1 new method) | `QueueBrewGUI` | `Line`, `Customer`, `Order`, `Menu` |
+| Line clears and lives lost for leftovers, quiet last 3 seconds (rows 21, 22) | `Line`, `GameState` | none | `QueueBrewGUI` (message text only) | `Customer`, `Order`, `Menu` |
+
+`ModelDriver` was also updated in the cup, popup and arrival commits so it can still play a full game. The arrival-timing changes stayed entirely inside `GameState` (plus the driver's clicks-per-second setting), which is what we wanted from keeping the rules in one model class. The cup and the popup both needed the controller to forward new clicks, because each added a new player action.
+
+**The patience timer (planned).**
+
 - **Predicted (before building):** the timer should touch `GameState` (new countdown state and walk-out rule) and `GameInfo` (one new getter) in the model, and `QueueBrewGUI` in the view. It should **not** touch `Line`, `Customer`, `Order`, `Menu` or the controller `QueueBrew`.
 - **Actual:** *[TEAM: list the classes the timer really touched, and say what matched and what surprised you.]*
 
@@ -220,7 +249,8 @@ Roles follow the spec's Division of Work. [TEAM: confirm each owner before submi
 
 ### What changed from our Deliverable 3 plan?
 
-- **The change feature switched.** The Prototype 1 Next Steps named *preparation times* as the Deliverable 4 change feature. We are instead using the *patience timer*, because the scope already listed it as a stretch goal and we had settled how to keep FIFO (only the front customer can walk out). *[TEAM: confirm, and decide how to describe the work done between D3 and now, listed in change-log rows 9 to 22: the drink-making cup, the wrong-order lockout, random arrival gaps, the day-end popup, clearing the line each day, losing lives for customers left at closing, and the quiet last 3 seconds.]*
+- **We built more than planned, before the planned feature.** The Prototype 1 Next Steps listed a short MVP to-do list and one change feature (preparation times). Since the hand-in we also built, from playtest feedback: making the drink from ingredients (change-log row 9), a wrong-order lockout (18), random arrival gaps (19), a day-end popup that pauses the game (20), clearing the line each day (21), losing a life for each customer left at closing and no arrivals in the last 3 seconds (22), and arrivals that get faster toward day 7 (24). None of these were in the D3 plan. They are listed with reasons in the Prototype 2 change table, and by commit in [Changes between prototypes](#changes-between-prototypes).
+- **The change feature switched.** The Prototype 1 Next Steps named *preparation times* as the Deliverable 4 change feature. We are instead using the *patience timer*, because the scope already listed it as a stretch goal and we had settled how to keep FIFO (only the front customer can walk out). *[TEAM: confirm.]*
 - Preparation times are not being built. *[TEAM: confirm, and move it to the dropped stretch goals below.]*
 
 ### What doesn't work yet?
