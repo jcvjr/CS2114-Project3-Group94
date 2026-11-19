@@ -25,11 +25,13 @@ public class MenuAndOrderTest {
         }
     }
 
+
     @Test
     public void recipeForUnknownDrinkIsNull() {
         assertNull(Menu.recipeFor("Soup"));
         assertNull(Menu.recipeFor(null));
     }
+
 
     @Test
     public void recipeCardHasOneLinePerDrink() {
@@ -37,34 +39,39 @@ public class MenuAndOrderTest {
         assertTrue(Menu.getRecipeCard().contains("Latte: Espresso + Milk"));
     }
 
+
     @Test
     public void randomOrderIsOnTheMenuAndRejectsNullRandom() {
         Order order = Menu.randomOrder(new Random(5));
         assertNotNull(Menu.recipeFor(order.getDrink()));
-        assertThrows(IllegalArgumentException.class,
-            () -> Menu.randomOrder(null));
+        assertThrows(IllegalArgumentException.class, () -> Menu.randomOrder(
+            null));
     }
+
 
     @Test
     public void orderFromMenuGetsItsRecipe() {
-        assertEquals(List.of("Espresso", "Milk"),
-            new Order("Latte").getIngredients());
+        assertEquals(List.of("Espresso", "Milk"), new Order("Latte")
+            .getIngredients());
     }
+
 
     @Test
     public void orderRejectsDrinkNotOnMenu() {
         assertThrows(IllegalArgumentException.class, () -> new Order("Soup"));
     }
 
+
     @Test
     public void orderRejectsBadRecipes() {
-        assertThrows(IllegalArgumentException.class,
-            () -> new Order("Latte", null));
-        assertThrows(IllegalArgumentException.class,
-            () -> new Order("Latte", List.of()));
-        assertThrows(IllegalArgumentException.class,
-            () -> new Order("Latte", List.of("Milk", " ")));
+        assertThrows(IllegalArgumentException.class, () -> new Order("Latte",
+            null));
+        assertThrows(IllegalArgumentException.class, () -> new Order("Latte",
+            List.of()));
+        assertThrows(IllegalArgumentException.class, () -> new Order("Latte",
+            List.of("Milk", " ")));
     }
+
 
     @Test
     public void matchesIgnoresOrderButNotCounts() {
@@ -76,10 +83,37 @@ public class MenuAndOrderTest {
         assertFalse(latte.matches(null));
     }
 
+
     @Test
     public void getIngredientsIsACopy() {
         Order latte = new Order("Latte");
         latte.getIngredients().clear();
         assertEquals(2, latte.getIngredients().size());
     }
+
+
+    @Test
+    public void isIngredientValidIngredient() {
+        assertTrue(Menu.isIngredient("Coffee"));
+    }
+
+
+    @Test
+    public void isIngredientInvalidIngredient() {
+        assertFalse(Menu.isIngredient("Tea"));
+    }
+
+
+    @Test
+    public void isIngredientNullIngredient() {
+        assertFalse(Menu.isIngredient(null));
+    }
+
+
+    @Test
+    public void getIngredientsAllIngredients() {
+        assertEquals(List.of("Coffee", "Espresso", "Milk", "Foam", "Chocolate",
+            "Vanilla", "Caramel"), Menu.getIngredients());
+    }
+
 }
