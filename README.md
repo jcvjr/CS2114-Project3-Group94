@@ -332,7 +332,7 @@ No. The view learned exactly one new thing, `GameInfo.getFrontPatienceLeft()`, a
 | `OrderAndCustomerTest.java` | Veronica | Tested; GenAI-assisted |
 | `Menu.java` | Veronica | Added with the cup feature; GenAI-assisted |
 | `MenuAndOrderTest.java` | Veronica | Tested; GenAI-assisted. A teammate added the `isIngredient` and `getIngredients` tests *[TEAM: confirm who]* |
-| `QueueBrewGUITest.java` | *[TEAM: who]* | Tested the view and controller; GenAI-assisted |
+| `QueueBrewGUITest.java` | JC | Wrote and tested the view and controller tests; GenAI-assisted |
 | `LineTest.java` | Nandini | Tested; GenAI-assisted |
 | `TimeUtilTest.java` | Nandini | Tested; GenAI-assisted |
 | `GameStateTest.java` | Veronica | Tested; GenAI-assisted |
