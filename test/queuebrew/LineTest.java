@@ -135,6 +135,35 @@ public class LineTest {
     }
 
     @Test
+    public void orderIsKeptAcrossInterleavedEnqueuesAndDequeues() {
+        // 'e' = enqueue the next new customer, 'd' = dequeue. The pattern mixes
+        // short runs, fills the line (the extra 'e' must be refused) and drains
+        // it (the extra 'd' must return null). A plain ArrayDeque is the
+        // reference for what first-in, first-out should give.
+        String ops = "eeedeedd" + "eeeeee" + "e" + "dd" + "ee" + "dddddd" + "d"
+            + "ede" + "ded" + "ed";
+        java.util.ArrayDeque<Customer> expected = new java.util.ArrayDeque<>();
+        int next = 0;
+        for (char op : ops.toCharArray()) {
+            if (op == 'e') {
+                Customer c = new Customer("C" + next++, new Order("Latte"));
+                boolean fits = expected.size() < line.getCapacity();
+                assertEquals(fits, line.enqueue(c), "enqueue " + c.getName());
+                if (fits) {
+                    expected.addLast(c);
+                }
+            }
+            else {
+                assertSame(expected.pollFirst(), line.dequeue());
+            }
+            assertEquals(expected.size(), line.getSize());
+            assertArrayEquals(expected.toArray(new Customer[0]),
+                line.toArray());
+            assertSame(expected.peekFirst(), line.peek());
+        }
+    }
+
+    @Test
     public void toArrayIsACopy() {
         line.enqueue(alex);
         line.enqueue(sam);

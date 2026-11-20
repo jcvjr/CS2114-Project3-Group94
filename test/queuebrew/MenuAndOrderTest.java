@@ -116,4 +116,13 @@ public class MenuAndOrderTest {
             "Vanilla", "Caramel"), Menu.getIngredients());
     }
 
+    @Test
+    public void getDrinksListsTheMenuAndIsACopy() {
+        List<String> drinks = Menu.getDrinks();
+        assertTrue(drinks.contains("Latte"));
+        assertEquals(6, drinks.size());
+        drinks.clear();
+        assertEquals(6, Menu.getDrinks().size());
+    }
+
 }

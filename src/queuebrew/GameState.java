@@ -154,13 +154,33 @@ public class GameState implements GameInfo {
         line = new Line(QUEUE_CAPACITY);
         cup = new ArrayList<>();
         listeners = new ArrayList<>();
+        resetState();
+    }
+
+    /** Puts every part of the game back to a fresh day 1. */
+    private void resetState() {
+        line.clear();
+        cup.clear();
         lives = STARTING_LIVES;
         day = 1;
         secondsLeftInDay = SECONDS_PER_DAY;
         secondsSinceArrival = 0;
+        penaltySecondsLeft = 0;
+        frontPatienceLeft = patienceSeconds;
+        betweenDays = false;
         status = Status.PLAYING;
         message = "";
         currentArrivalInterval = nextArrivalInterval(day);
+    }
+
+    /**
+     * Starts a brand-new game: day 1, full lives, an empty line and cup. The
+     * registered listeners stay registered and are told about the new state.
+     * Works from any state, so it is safe to call mid-game too.
+     */
+    public void restart() {
+        resetState();
+        notifyListeners();
     }
 
     /**

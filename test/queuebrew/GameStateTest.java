@@ -752,6 +752,93 @@ public class GameStateTest {
         }
     }
 
+    // ---- restart ----
+
+    @Test
+    public void restartAfterLosingGivesAFreshGame() {
+        tick(60); // lost on the first closing
+        assertEquals(GameState.Status.LOST, game.getStatus());
+        game.restart();
+        assertEquals(GameState.Status.PLAYING, game.getStatus());
+        assertEquals(3, game.getLives());
+        assertEquals(1, game.getDay());
+        assertEquals(60, game.getSecondsLeftInDay());
+        assertEquals(0, game.getQueueSize());
+        assertTrue(game.getCup().isEmpty());
+        assertEquals("", game.getMessage());
+        assertEquals(0, game.getPenaltySecondsLeft());
+        assertEquals(0, game.getFrontPatienceLeft());
+        assertFalse(game.isBetweenDays());
+    }
+
+    @Test
+    public void restartAfterWinningGivesAFreshGame() {
+        tickAndServe(7 * 60);
+        assertEquals(GameState.Status.WON, game.getStatus());
+        game.restart();
+        assertEquals(GameState.Status.PLAYING, game.getStatus());
+        assertEquals(1, game.getDay());
+        assertEquals(3, game.getLives());
+    }
+
+    @Test
+    public void restartMidGameClearsTheCupPenaltyAndPause() {
+        tick(8);
+        game.addIngredient("Foam");
+        game.addIngredient("Foam");
+        game.addIngredient("Foam");
+        game.completeFrontOrder(); // wrong cup: penalty
+        game.restart();
+        assertEquals(0, game.getQueueSize());
+        assertTrue(game.getCup().isEmpty());
+        assertEquals(0, game.getPenaltySecondsLeft());
+        tickAndServe(40);
+        tick(20); // day 1 ends with customers left, so the game is paused
+        assertTrue(game.isBetweenDays());
+        game.restart();
+        assertFalse(game.isBetweenDays());
+        assertEquals(1, game.getDay());
+    }
+
+    @Test
+    public void restartKeepsListenersAndTellsThem() {
+        int[] calls = { 0 };
+        game.addListener(() -> calls[0]++);
+        game.restart();
+        assertEquals(1, calls[0]);
+        game.tick();
+        assertEquals(2, calls[0]);
+    }
+
+    @Test
+    public void aRestartedGameIsFullyPlayable() {
+        tick(60);
+        game.restart();
+        tick(7);
+        assertEquals(0, game.getQueueSize());
+        tick(1); // first customer arrives on the usual 8 s after the restart
+        assertEquals(1, game.getQueueSize());
+        assertTrue(serveFront());
+        assertEquals(3, game.getLives());
+    }
+
+    // ---- menu pass-throughs the view reads ----
+
+    @Test
+    public void ingredientsAndRecipeCardComeFromTheMenu() {
+        assertEquals(Menu.getIngredients(), game.getIngredients());
+        assertEquals(Menu.getRecipeCard(), game.getRecipeCard());
+    }
+
+    @Test
+    public void theViewCannotChangeTheMenuThroughGameInfo() {
+        assertThrows(UnsupportedOperationException.class,
+            () -> game.getIngredients().add("Motor Oil"));
+        int lines = game.getRecipeCard().size();
+        game.getRecipeCard().clear();
+        assertEquals(lines, game.getRecipeCard().size());
+    }
+
     // ---- getters ----
 
     @Test

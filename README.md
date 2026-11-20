@@ -8,7 +8,7 @@ A coffee-shop game. Customers arrive on their own and join a fixed-size, array-b
 |---|---|---|
 | What it is | The first working slice. The model stands alone, with a thin view. One **Complete Order** button removes the front customer. | The same game made deeper and harder: making the drink, a wrong-order lockout, random and faster arrivals, a day-end popup, and lives lost for customers left waiting. The patience timer is the change feature. |
 | Code | Commit `7b1a2e5`, exactly as handed in for Deliverable 3 | Every commit after it (`7519ee0` onward) up to the current code |
-| Tests | 38 | 92, and growing |
+| Tests | 38 | 120, and growing |
 | Change-log rows | 1 to 8 | 9 onward |
 | README sections | "Prototype 1 Reflection" and "Prototype 1 Next Steps" (kept exactly as submitted) | "Reflection" and "Next Steps" |
 
@@ -24,16 +24,16 @@ src/queuebrew/
   GameInfo, GameListener            the model/view boundary (read-only getters + one callback)
   ModelDriver                       console driver: plays a full game, no window
   QueueBrew                         controller: owns the 1-second Timer, wires model and view
-  QueueBrewGUI                      thin Swing view
+  QueueBrewGUI                      thin Swing view: the game screen and the win/lose screen
 test/queuebrew/
-  OrderAndCustomerTest, MenuAndOrderTest, LineTest, TimeUtilTest, GameStateTest   JUnit 5, no GUI
+  OrderAndCustomerTest, MenuAndOrderTest, LineTest, TimeUtilTest, GameStateTest, QueueBrewGUITest   JUnit 5, no GUI
 ```
 
 ## How to run
 
 This is an Eclipse project (`.classpath` / `.project` included, JUnit 5 on the classpath). Use *File > Import > Existing Projects into Workspace*.
 
-- **Tests (model only, no view):** right-click the `test` folder > *Run As > JUnit Test*. 92 tests, all passing at hand-in.
+- **Tests (model only, no view):** right-click the `test` folder > *Run As > JUnit Test*. 120 tests, all passing at hand-in. The 15 tests in `QueueBrewGUITest` drive the real window and need a display (they are skipped, not failed, on a machine without one).
 - **Model driver (no view):** run `queuebrew.ModelDriver`. It plays a whole 7-day game in the console with a seeded Random: the simulated player makes each drink correctly and completes it, at 3 clicks per second by default (it wins). Pass a number to change the clicks per second (1 loses on day 6, 2 or more wins) or `lazy` for a player who never serves anyone, which loses. The robot never misclicks, so a human is slower than it.
 - **How to play:** click ingredient buttons to fill the cup so it matches the front customer's recipe (the recipe card is on the right), then click Complete Order. Clear Cup empties the cup. A wrong cup locks all the buttons for 3 seconds. When a day ends, the game pauses and a popup says you completed the day. Click OK to start the next one. The line is empty at the start of each day, but each customer still in line when a day ends costs a life.
 - **Thin view (the game):** run `queuebrew.QueueBrew`.
@@ -62,7 +62,7 @@ This is a running log. Every time the prototype departs from the Scope or the Sp
 | 4 | Validation strictness | `Order`/`Customer` reject null or empty. | Also reject blank (whitespace-only) text. | The spec's own test table hinted at it, and a name of spaces is as bad as an empty one. |
 | 5 | Messages | Spec gave two message texts, and never said when a message goes away. | Messages are public constants in `GameState`. `tick()` clears the message at the start of each tick, and a successful action clears it. | Fills a gap, and keeps tests and the view from retyping the text. |
 | 6 | `arrivalIntervalForDay` | Spec: private, and "can be static". | `private static`, tested through behavior (8 s on day 1, 7 s on day 2). | Spec had it private. Behavior tests are enough. |
-| 7 | Test plan | One normal and one bad-input test per public method. | Tests are grouped by behavior (92 now). Trivial getters are covered inside scenario tests. Added tests the spec did not list (see rows below). | Fewer, more meaningful tests. Every spec'd case is still covered. |
+| 7 | Test plan | One normal and one bad-input test per public method. | Tests are grouped by behavior (120 now). Trivial getters are covered inside scenario tests. Added tests the spec did not list (see rows below). | Fewer, more meaningful tests. Every spec'd case is still covered. |
 | 8 | Console driver | Not in the spec. | `ModelDriver` plays a whole game with no window. | The "tiny driver" the Deliverable 3 rubric asks for. |
 ### Prototype 2 changes (after the Deliverable 3 hand-in)
 
@@ -86,6 +86,9 @@ Same columns. Rows 9 to 22 were made in commits `7519ee0` to `050ea57`, row 24 i
 | 22 | **Lives lost for customers left in line at closing** (new) | Spec: lives are lost only when a customer arrives to a full line. | When any day ends (including day 7), the player loses one life per customer still in line (never below 0). If that reaches 0 lives the game is LOST, even on day 7. The model writes the message ("2 customers were still in line at closing: -2 lives."), and the end-of-day popup shows it. Also, no customer arrives in the last 3 seconds of a day (`CLOSING_SECONDS_WITHOUT_ARRIVALS`; `tick()` skips arrivals once 2 or fewer seconds are left). | Player request: otherwise the line clearing (row 21) let the player ignore the queue at the end of a day. The quiet period at closing is our addition (first one second, then widened to 3 seconds at the player's request). Without it, days 3, 5, 6 and 7 (gaps of 6 s or 5 s that divide 60) would always drop a customer on the closing second that nobody could serve. Not in the scope or spec. 7 new tests. |
 | 23 | **Patience timer** (built) | Scope stretch goal: a timer per order, and customers who wait past a limit walk out, "while maintaining FIFO". | Only the customer at the **front** of the line is impatient. Their countdown starts at `PATIENCE_SECONDS` (15) when they become the front. If it reaches 0 they walk out, the cup is dumped, and the player loses a life ("<name> got tired of waiting and left: -1 life."). Customers behind the front have no timer, so nobody leaves from the middle and FIFO order holds. The clock keeps running during the wrong-order lockout, and is frozen between days and after game over. The view shows "Front customer will leave in Ns". New `GameInfo.getFrontPatienceLeft()`, and a constructor `GameState(Random, int jitter, int patienceSeconds)` so tests can switch walk-outs off. | The scope left "how do we keep FIFO?" open, and timing only the front customer answers it. Replaces the D3 plan's change feature (preparation times), see the Prototype 2 reflection. Classes touched: `GameState`, `GameInfo`, `QueueBrewGUI` plus tests, as predicted in [docs/patience-timer-plan.md](docs/patience-timer-plan.md). 11 new tests. |
 | 24 | **Harder arrivals toward the final day** (Prototype 2) | Rows 15 and 19: average gap 8 s on day 1, down 1 s per day to a floor of 5 s, with each gap varying by up to 2 s. The game was too easy. | The average gap now shrinks evenly from 8 s on day 1 to `FINAL_DAY_ARRIVAL_INTERVAL_SECONDS` (3 s) on day 7: 8, 7, 6, 5, 5, 4, 3 s by day. The random variation shrinks on later days (about a third of the interval, at least 1 s), so day 7 gaps are **2 to 4 seconds**. Constants `ARRIVAL_INTERVAL_DECREASE_PER_DAY` and `MIN_ARRIVAL_INTERVAL_SECONDS` are removed. `ModelDriver` now takes a clicks-per-second argument (default 3). | Playtest feedback: the game was way too easy. Rows 15 and 19 are superseded for days 4 to 7 (days 1 to 3 are unchanged). A perfect robot at 1 click per second now loses on day 6 and one at 2 or more wins, so it is winnable but tight. Not yet playtested by a person. 2 new tests. |
+| 25 | **Restart and a win/lose screen** (Prototype 2) | Scope MVP: "a win/lose screen". Prototype 1 only showed a line of text and disabled the buttons, so the window had to be closed and reopened to play again. | The game now ends on its own **end screen**: "YOU WIN!" or "GAME OVER", the reason (for example "6 customers were still in line at closing"), the day reached or lives left, and a **Play Again** button. New `GameState.restart()` resets everything and keeps the listeners. The controller gets `onPlayAgainClicked()`, which also restarts the one-second clock, and a second constructor `QueueBrew(GameState)` so tests can supply a game. The view uses a card layout. `GameInfo` did not change. | A gap found when checking the scope against the prototype. 5 new model tests. |
+| 26 | **GUI tests** (Prototype 2) | Prototype 1 had no automated test for the view or controller. | `QueueBrewGUITest` (15 tests) builds the real view and controller around a real model and looks components up by name. It clicks buttons and ticks the model directly, so nothing waits for real time. It checks that the view shows the model's state, that clicks flow through the controller into the model, the bad-input cases (complete with nobody in line, an empty cup, a wrong order, a full cup), both end screens, and Play Again. Skipped on a machine with no display. Components now have names, and `QueueBrew.getGui()` and `QueueBrewGUI.getFrame()` are package-private for tests. | The Deliverable 4 rubric asks for the view to be connected to the model and shown to work. The model tests still carry the coverage, and these only add the view. |
+| 27 | **More model tests** (Prototype 2) | Rubric "Exceeds": tests check order after interleaved enqueues and dequeues. | `LineTest` gains a test that mixes enqueues and dequeues (including a full line and an empty one) and compares every step with a plain `ArrayDeque`. Also added: tests for `GameState.getIngredients()` and `getRecipeCard()` (and that the view cannot change the menu through them), `Menu.getDrinks()`, and the `isIngredient` and `getIngredients` tests a teammate added to `MenuAndOrderTest`. | Closes gaps found in a review of the tests against the rubric. |
 
 ## Changes between prototypes
 
@@ -101,19 +104,20 @@ What is different between the **Deliverable 3 hand-in** (commit `7b1a2e5`) and t
 | `0b9e2d6` | The **line clears at the end of each day**, and each customer left in line costs a **life** (day 7 included). | 21, 22 | 78 |
 | `050ea57` | No customer arrives in the **last 3 seconds** of a day. | 22 | 79 |
 | `e429481` (Prototype 2 begins) | **Harder arrivals**: the average gap shrinks to 3 s on day 7, with gaps of 2 to 4 s. Prototype 2 README and the patience-timer plan added. | 24 | 81 |
-| next commit | **Patience timer**: the customer at the front of the line walks out after 15 s, costing a life, while the customers behind keep their place. The view shows a countdown. | 23 | 92 |
+| `1e21d4d` | **Patience timer**: the customer at the front of the line walks out after 15 s, costing a life, while the customers behind keep their place. The view shows a countdown. | 23 | 92 |
+| next commit | **Restart and win/lose screen**: a separate YOU WIN / GAME OVER screen with the reason and a Play Again button. **GUI tests** that drive the real window. A dedicated interleaved FIFO test and more model tests, including a teammate's. | 25, 26, 27 | 120 |
 
 ### At a glance: D3 hand-in versus now
 
 | Part | D3 hand-in | Now |
 |---|---|---|
 | Model classes | `Order`, `Customer`, `Line`, `TimeUtil`, `GameState` | Adds `Menu`. `Order` gains `getIngredients()`, `matches()` and a recipe constructor. `Line` gains `clear()`. |
-| `GameState` | `tick()`, `completeFrontOrder()`, `addListener()` | Adds `addIngredient()`, `clearCup()`, `startNextDay()` and constructors taking an arrival jitter and a patience length. New rules: the front customer walks out after 15 s, cup matching, wrong-order lockout, random arrival gaps that shrink toward day 7, pause between days, line clears at closing, lives lost for leftover customers, quiet last 3 seconds. |
+| `GameState` | `tick()`, `completeFrontOrder()`, `addListener()` | Adds `addIngredient()`, `clearCup()`, `startNextDay()`, `restart()` and constructors taking an arrival jitter and a patience length. New rules: the front customer walks out after 15 s, cup matching, wrong-order lockout, random arrival gaps that shrink toward day 7, pause between days, line clears at closing, lives lost for leftover customers, quiet last 3 seconds. |
 | `GameInfo` (what the view can read) | 8 getters | 14: adds `getCup()`, `getIngredients()`, `getRecipeCard()`, `getPenaltySecondsLeft()`, `isBetweenDays()` and `getFrontPatienceLeft()`. |
-| Controller (`QueueBrew`) | `onCompleteClicked()` | Adds `onIngredientClicked()`, `onClearCupClicked()` and `onNextDayClicked()`. Still no game rules in it. |
-| View (`QueueBrewGUI`) | Labels, line list, one button | Adds ingredient buttons, Clear Cup, a cup display, a recipe card, the lockout countdown, and the end-of-day popup. Still keeps no game state of its own. |
+| Controller (`QueueBrew`) | `onCompleteClicked()` | Adds `onIngredientClicked()`, `onClearCupClicked()`, `onNextDayClicked()` and `onPlayAgainClicked()`, plus a constructor that takes a game. Still no game rules in it. |
+| View (`QueueBrewGUI`) | Labels, line list, one button | Adds ingredient buttons, Clear Cup, a cup display, a recipe card, the lockout countdown, the end-of-day popup, and a separate win/lose screen with Play Again. Still keeps no game state of its own. |
 | `ModelDriver` | Plays a game by completing orders on a timer | Builds each drink and takes a clicks-per-second argument (default 3). |
-| Tests | 38, in 4 files | 92, in 5 files (adds `MenuAndOrderTest`). |
+| Tests | 38, in 4 files | 120, in 6 files (adds `MenuAndOrderTest` and `QueueBrewGUITest`). |
 | Not built | Patience timer, food queue, preparation times | Patience timer is built in Prototype 2 ([plan](docs/patience-timer-plan.md)). Food queue and preparation times are dropped. |
 
 ### What stayed the same
@@ -259,7 +263,7 @@ No. The view learned exactly one new thing, `GameInfo.getFrontPatienceLeft()`, a
 ### What doesn't work yet?
 
 - The patience length (15 s) and its cost (one life) are defaults chosen without a playtest, and the walk-out message is visible for only one second because the next tick clears it.
-- Known from Prototype 1: no automated GUI tests, no score, no Play Again button, and game balance (arrival gaps, patience, lockout, life loss for leftover customers) is only lightly playtested.
+- Still open: there is no score, and game balance (arrival gaps, patience, lockout, life loss for leftover customers) is only lightly playtested.
 - The `GameInfo` boundary leaks listed in the Prototype 1 reflection (`Status` lives inside `GameState`, the view reads `GameState.TOTAL_DAYS`) are still open.
 
 ### What design change would make the next feature cheaper?
@@ -275,9 +279,9 @@ No. The view learned exactly one new thing, `GameInfo.getFrontPatienceLeft()`, a
 1. ~~Patience timer~~ **Done** in the model, view and tests (see the plan).
 2. ~~Fix the existing tests~~ **Done**: they use the patience-off constructor, and the patience tests use the real 15 s.
 3. **Fix the boundary leaks** (`Status`, `getTotalDays`).
-4. **Play Again button** through the controller, and show the turned-away and walk-out messages for longer than one second.
+4. ~~Play Again button~~ **Done** (with a win/lose screen). Still to do: show the turned-away and walk-out messages for longer than one second.
 5. **Playtest and tune** the constants together: arrival gaps, patience length, lockout length, life loss for leftover customers.
-6. **GUI smoke test**: one scripted check that builds `QueueBrewGUI` against a `GameState` and plays a day.
+6. ~~GUI smoke test~~ **Done**: `QueueBrewGUITest` has 15 tests that drive the real window.
 7. **Finish the README**: fill in the Prototype 2 reflection, the attribution table and the GenAI note.
 
 ### Stretch goals
@@ -305,9 +309,9 @@ No. The view learned exactly one new thing, `GameInfo.getFrontPatienceLeft()`, a
 | Patience countdown in the view | Shea *[confirm]* |
 | Fix existing tests for the walk-out rule | Done *[TEAM: add who]* |
 | Boundary fixes (`Status`, `getTotalDays`) | Nandini *[confirm]* |
-| Play Again button and message timing | Shea / JC *[confirm]* |
+| Play Again button and win/lose screen | Done *[TEAM: add who]*. Message timing still open |
 | Playtest and tune | Everyone |
-| GUI smoke test | JC *[confirm]* |
+| GUI tests | Done *[TEAM: add who]* |
 | README reflection, attribution, GenAI note | JC *[confirm]* |
 
 ## Attribution
@@ -327,7 +331,8 @@ No. The view learned exactly one new thing, `GameInfo.getFrontPatienceLeft()`, a
 | `QueueBrewGUI.java` | Shea | Wrote thin view; GenAI-assisted |
 | `OrderAndCustomerTest.java` | Veronica | Tested; GenAI-assisted |
 | `Menu.java` | Veronica | Added with the cup feature; GenAI-assisted |
-| `MenuAndOrderTest.java` | Veronica | Tested; GenAI-assisted |
+| `MenuAndOrderTest.java` | Veronica | Tested; GenAI-assisted. A teammate added the `isIngredient` and `getIngredients` tests *[TEAM: confirm who]* |
+| `QueueBrewGUITest.java` | *[TEAM: who]* | Tested the view and controller; GenAI-assisted |
 | `LineTest.java` | Nandini | Tested; GenAI-assisted |
 | `TimeUtilTest.java` | Nandini | Tested; GenAI-assisted |
 | `GameStateTest.java` | Veronica | Tested; GenAI-assisted |
@@ -335,4 +340,4 @@ No. The view learned exactly one new thing, `GameInfo.getFrontPatienceLeft()`, a
 
 ### GenAI note
 
-We gave Claude our Scope and Specification (class design, method signatures, validation table and test plan) and the Deliverable 3 requirements, and asked it to implement the model, a thin Swing view and controller, JUnit tests, a console driver and the README. We kept the spec's class design and method signatures as written. Claude found that the spec said both "every 5 seconds" and "8 seconds" for arrivals, and followed the constants table. It also removed the unused `secondsWaiting` field, and we kept that change. It ran the 38 tests (all pass), the driver, and launched the GUI for a few seconds without errors. We later asked Claude to add the step of making the drink before completing it, and to keep the "Changes from Spec / Scope to Prototype" table up to date. It added `Menu`, the cup logic and tests, raised the minimum arrival interval from 3 s to 5 s, and its new tests caught a null-handling bug (`Menu.isIngredient(null)` threw a NullPointerException instead of the intended IllegalArgumentException), which it fixed. Then, at our request, it added a 3-second lockout for wrong orders, random gaps between arrivals, and a pause with a "you completed day X" popup between days. It checked the popup with a throwaway script that ticked the game through a day and clicked OK. It then made the line clear at the end of each day, and made each customer left in line at closing cost a life (plus no arrivals in the last 3 seconds of a day). 79 tests pass. For Prototype 2 we then asked it to make the game harder toward the last day (gaps of 2 to 4 seconds on day 7), and it also added a clicks-per-second setting to the driver so we could see whether a perfect player can still win. 81 tests pass. We then asked it to build the patience timer from the saved plan (only the front customer walks out, 15 seconds, costs a life). It also checked that the new tests fail when the timer is broken. 92 tests pass. [TEAM: add what you personally reviewed or changed, what you asked Claude about the change feature, and anything you rejected.]
+We gave Claude our Scope and Specification (class design, method signatures, validation table and test plan) and the Deliverable 3 requirements, and asked it to implement the model, a thin Swing view and controller, JUnit tests, a console driver and the README. We kept the spec's class design and method signatures as written. Claude found that the spec said both "every 5 seconds" and "8 seconds" for arrivals, and followed the constants table. It also removed the unused `secondsWaiting` field, and we kept that change. It ran the 38 tests (all pass), the driver, and launched the GUI for a few seconds without errors. We later asked Claude to add the step of making the drink before completing it, and to keep the "Changes from Spec / Scope to Prototype" table up to date. It added `Menu`, the cup logic and tests, raised the minimum arrival interval from 3 s to 5 s, and its new tests caught a null-handling bug (`Menu.isIngredient(null)` threw a NullPointerException instead of the intended IllegalArgumentException), which it fixed. Then, at our request, it added a 3-second lockout for wrong orders, random gaps between arrivals, and a pause with a "you completed day X" popup between days. It checked the popup with a throwaway script that ticked the game through a day and clicked OK. It then made the line clear at the end of each day, and made each customer left in line at closing cost a life (plus no arrivals in the last 3 seconds of a day). 79 tests pass. For Prototype 2 we then asked it to make the game harder toward the last day (gaps of 2 to 4 seconds on day 7), and it also added a clicks-per-second setting to the driver so we could see whether a perfect player can still win. 81 tests pass. We then asked it to build the patience timer from the saved plan (only the front customer walks out, 15 seconds, costs a life). It also checked that the new tests fail when the timer is broken. 92 tests pass. Then we asked it to review what was still missing. It pulled in a teammate's tests, added the interleaved FIFO test and more model tests, added the restart, the win/lose screen and the GUI tests, and checked the new tests fail when the restart, the end screen or the ingredient clicks are broken. 120 tests pass. [TEAM: add what you personally reviewed or changed, what you asked Claude about the change feature, and anything you rejected.]

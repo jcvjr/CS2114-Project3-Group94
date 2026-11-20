@@ -12,13 +12,25 @@ public class QueueBrew {
     private final GameState game;
     private final QueueBrewGUI gui;
     private final Timer timer;
+    private boolean started;
 
     /**
      * Creates the model and view and wires them together. The timer is not
      * started until {@link #start()}.
      */
     public QueueBrew() {
-        game = new GameState();
+        this(new GameState());
+    }
+
+    /**
+     * Creates the controller around a game that already exists, so tests can
+     * supply one with exact timing. The timer is not started.
+     *
+     * @param game
+     *            the model to drive
+     */
+    public QueueBrew(GameState game) {
+        this.game = game;
         gui = new QueueBrewGUI(game, this);
         game.addListener(gui);
         timer = new Timer(1000, e -> onTimerTick());
@@ -28,6 +40,7 @@ public class QueueBrew {
      * Shows the window and starts the clock.
      */
     public void start() {
+        started = true;
         gui.display();
         timer.start();
     }
@@ -40,6 +53,24 @@ public class QueueBrew {
      */
     public void onIngredientClicked(String ingredient) {
         game.addIngredient(ingredient);
+    }
+
+    /**
+     * Called by the view when the player clicks Play Again on the end screen.
+     * Starts a new game and makes sure the clock is running again, because it
+     * stopped when the last game ended.
+     */
+    public void onPlayAgainClicked() {
+        game.restart();
+        // only a game that was started with start() has a clock to restart
+        if (started && !timer.isRunning()) {
+            timer.start();
+        }
+    }
+
+    /** @return the view, so tests in this package can inspect it */
+    QueueBrewGUI getGui() {
+        return gui;
     }
 
     /**
